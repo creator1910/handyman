@@ -11,9 +11,7 @@ interface AppShellProps {
 
 const navigation = [
   { name: 'Chat', href: '/', icon: '💬', aria: 'Chat mit AI Assistent' },
-  { name: 'CRM', href: '/kunden', icon: '👥', aria: 'Kunden und Interessenten verwalten' },
-  { name: 'Angebote', href: '/angebote', icon: '📋', aria: 'Angebote erstellen und verwalten' },
-  { name: 'Rechnungen', href: '/rechnungen', icon: '📄', aria: 'Rechnungen verwalten' },
+  { name: 'Kunden', href: '/kunden', icon: '👥', aria: 'Kunden und Interessenten verwalten' },
   { name: 'Einstellungen', href: '/einstellungen', icon: '⚙️', aria: 'App-Einstellungen' }
 ]
 
@@ -152,7 +150,7 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Bottom navigation for mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border">
         <nav className="flex" role="navigation" aria-label="Mobile Navigation">
-          {navigation.slice(0, 4).map((item) => {
+          {navigation.map((item) => {
             const isActive = pathname === item.href || 
               (item.href !== '/' && pathname.startsWith(item.href))
             

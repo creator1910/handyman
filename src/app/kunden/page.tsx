@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { Badge } from '@/components/ui/Badge'
@@ -22,11 +23,11 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'prospects' | 'customers'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCustomers()
@@ -188,16 +189,12 @@ export default function CustomersPage() {
             <div className="divide-y divide-border">
               {filteredCustomers.map((customer) => {
                 const lastActivity = getLastActivity(customer)
-                const isSelected = selectedCustomer === customer.id
                 
                 return (
                   <div
                     key={customer.id}
-                    className={cn(
-                      'flex items-center gap-4 px-6 py-4 hover:bg-surface/50 cursor-pointer transition-colors',
-                      isSelected && 'bg-primary/5 border-r-2 border-r-primary'
-                    )}
-                    onClick={() => setSelectedCustomer(customer.id)}
+                    className="flex items-center gap-4 px-6 py-4 hover:bg-surface/50 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/kunden/${customer.id}`)}
                   >
                     {/* Avatar placeholder */}
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
