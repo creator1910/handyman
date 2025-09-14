@@ -54,11 +54,12 @@ interface Appointment {
 }
 
 interface CustomerProfilePageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default function CustomerProfilePage({ params }: CustomerProfilePageProps) {
   const router = useRouter()
+  const [customerId, setCustomerId] = useState<string | null>(null)
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -72,10 +73,13 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
   })
 
   useEffect(() => {
-    if (params.id) {
-      fetchCustomer(params.id)
+    const loadParams = async () => {
+      const resolvedParams = await params
+      setCustomerId(resolvedParams.id)
+      fetchCustomer(resolvedParams.id)
     }
-  }, [params.id])
+    loadParams()
+  }, [params])
 
   const fetchCustomer = async (id: string) => {
     try {
@@ -106,10 +110,10 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
   }
 
   const handleSave = async () => {
-    if (!params.id) return
+    if (!customerId) return
 
     try {
-      const response = await fetch(`/api/customers/${params.id}`, {
+      const response = await fetch(`/api/customers/${customerId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +122,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
       })
 
       if (response.ok) {
-        await fetchCustomer(params.id)
+        await fetchCustomer(customerId)
         setIsEditing(false)
       }
     } catch (error) {
@@ -127,10 +131,10 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
   }
 
   const toggleCustomerStatus = async () => {
-    if (!customer || !params.id) return
+    if (!customer || !customerId) return
 
     try {
-      const response = await fetch(`/api/customers/${params.id}`, {
+      const response = await fetch(`/api/customers/${customerId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +146,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
       })
 
       if (response.ok) {
-        await fetchCustomer(params.id)
+        await fetchCustomer(customerId)
       }
     } catch (error) {
       console.error('Error updating customer status:', error)
@@ -325,7 +329,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
       label: 'Angebote',
       icon: '📋',
       content: (
-        <OffersTab customer={customer} onRefresh={() => params.id && fetchCustomer(params.id)} />
+        <OffersTab customer={customer} onRefresh={() => customerId && fetchCustomer(customerId)} />
       )
     },
     {
@@ -333,7 +337,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
       label: 'Rechnungen',
       icon: '📄',
       content: (
-        <InvoicesTab customer={customer} onRefresh={() => params.id && fetchCustomer(params.id)} />
+        <InvoicesTab customer={customer} onRefresh={() => customerId && fetchCustomer(customerId)} />
       )
     },
     {
@@ -341,7 +345,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
       label: 'Termine',
       icon: '📅',
       content: (
-        <AppointmentsTab customer={customer} onRefresh={() => params.id && fetchCustomer(params.id)} />
+        <AppointmentsTab customer={customer} onRefresh={() => customerId && fetchCustomer(customerId)} />
       )
     }
   ]
