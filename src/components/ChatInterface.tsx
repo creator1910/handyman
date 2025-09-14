@@ -9,10 +9,18 @@ interface ChatInterfaceProps {
   onProspectSuggestion?: (data: any) => void
 }
 
+interface ToolCall {
+  id: string
+  name: string
+  parameters: any
+  result?: any
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  toolCalls?: ToolCall[]
 }
 
 export default function ChatInterface({ onProspectSuggestion }: ChatInterfaceProps) {
@@ -52,7 +60,9 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorText = await response.text()
+        console.error('Response not ok:', response.status, errorText)
+        throw new Error(`Failed to get response: ${response.status} ${errorText}`)
       }
 
       const reader = response.body?.getReader()
@@ -72,22 +82,16 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           const { done, value } = await reader.read()
           if (done) break
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-
-          for (const line of lines) {
-            if (line.startsWith('0:"')) {
-              const content = line.slice(3, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"')
-              assistantContent += content
-              setMessages(prev => 
-                prev.map(msg => 
-                  msg.id === assistantMessage.id 
-                    ? { ...msg, content: assistantContent }
-                    : msg
-                )
-              )
-            }
-          }
+          const chunk = decoder.decode(value, { stream: true })
+          assistantContent += chunk
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === assistantMessage.id 
+                ? { ...msg, content: assistantContent }
+                : msg
+            )
+          )
         }
       }
     } catch (error) {
@@ -126,6 +130,7 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
             role={message.role}
             content={message.content}
             timestamp={new Date()}
+            toolCalls={message.toolCalls}
           />
         ))}
 
