@@ -91,15 +91,31 @@ export default function CustomersPage() {
   }
 
   const getLastActivity = (customer: Customer) => {
-    const dates = [
-      ...customer.offers.map(o => new Date(o.createdAt)),
-      ...customer.invoices.map(i => new Date(i.createdAt)),
-      ...customer.appointments.map(a => new Date(a.createdAt))
-    ]
-    
-    if (dates.length === 0) return new Date(customer.createdAt)
-    
-    return new Date(Math.max(...dates.map(d => d.getTime())))
+    try {
+      const dates = []
+      
+      // Safely add offer dates
+      if (customer.offers && Array.isArray(customer.offers)) {
+        dates.push(...customer.offers.filter(o => o && o.createdAt).map(o => new Date(o.createdAt)))
+      }
+      
+      // Safely add invoice dates
+      if (customer.invoices && Array.isArray(customer.invoices)) {
+        dates.push(...customer.invoices.filter(i => i && i.createdAt).map(i => new Date(i.createdAt)))
+      }
+      
+      // Safely add appointment dates
+      if (customer.appointments && Array.isArray(customer.appointments)) {
+        dates.push(...customer.appointments.filter(a => a && a.createdAt).map(a => new Date(a.createdAt)))
+      }
+      
+      if (dates.length === 0) return new Date(customer.createdAt)
+      
+      return new Date(Math.max(...dates.map(d => d.getTime())))
+    } catch (error) {
+      console.error('Error calculating last activity:', error)
+      return new Date(customer.createdAt)
+    }
   }
 
   if (loading) {
@@ -150,21 +166,21 @@ export default function CustomersPage() {
                 size="sm"
                 onClick={() => setFilter('all')}
               >
-                Alle <span className="ml-1 text-xs opacity-75">({customers.length})</span>
+                Alle <span className="ml-1 text-xs opacity-75">({customers?.length || 0})</span>
               </Button>
               <Button
                 variant={filter === 'prospects' ? 'primary' : 'tertiary'}
                 size="sm"
                 onClick={() => setFilter('prospects')}
               >
-                Interessenten <span className="ml-1 text-xs opacity-75">({customers.filter(c => c.isProspect).length})</span>
+                Interessenten <span className="ml-1 text-xs opacity-75">({customers?.filter(c => c?.isProspect).length || 0})</span>
               </Button>
               <Button
                 variant={filter === 'customers' ? 'primary' : 'tertiary'}
                 size="sm"
                 onClick={() => setFilter('customers')}
               >
-                Kunden <span className="ml-1 text-xs opacity-75">({customers.filter(c => !c.isProspect).length})</span>
+                Kunden <span className="ml-1 text-xs opacity-75">({customers?.filter(c => !c?.isProspect).length || 0})</span>
               </Button>
             </div>
           </div>
@@ -222,8 +238,8 @@ export default function CustomersPage() {
                       </div>
                       
                       <div className="flex items-center gap-4 text-xs text-muted mt-1">
-                        <span>{customer.offers.length} Angebote</span>
-                        <span>{customer.invoices.length} Rechnungen</span>
+                        <span>{customer.offers?.length || 0} Angebote</span>
+                        <span>{customer.invoices?.length || 0} Rechnungen</span>
                         <span>
                           Letzte Aktivität: {lastActivity.toLocaleDateString('de-DE', { 
                             day: 'numeric', 
