@@ -1,17 +1,25 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import { prisma } from './prisma';
 
 /**
  * MCP Client for communicating with the HandyAI CRM MCP Server
  * Provides a clean interface to execute CRM tools via MCP protocol
+ * Falls back to direct database operations in production environments
  */
 export class MCPClient {
   private process: ChildProcess | null = null;
   private requestId = 1;
   private pendingRequests: Map<number, { resolve: Function; reject: Function }> = new Map();
+  private isProductionMode = false;
 
   constructor() {
-    this.startMCPServer();
+    // Check if we're in a serverless environment (Vercel)
+    this.isProductionMode = process.env.VERCEL || process.env.NODE_ENV === 'production';
+
+    if (!this.isProductionMode) {
+      this.startMCPServer();
+    }
   }
 
   private startMCPServer() {
@@ -136,10 +144,73 @@ export class MCPClient {
     address?: string;
     isProspect?: boolean;
   }) {
+    if (this.isProductionMode) {
+      try {
+        const customer = await prisma.customers.create({
+          data: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email || null,
+            phone: data.phone || null,
+            address: data.address || null,
+            isProspect: data.isProspect ?? true
+          }
+        });
+        return {
+          success: true,
+          customer,
+          message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich erstellt.`
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Fehler beim Erstellen des Kunden',
+          message: error.message
+        };
+      }
+    }
     return this.callTool('create_customer', data);
   }
 
   async getCustomers(search?: string) {
+    if (this.isProductionMode) {
+      try {
+        const where = search ? {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' as const } },
+            { lastName: { contains: search, mode: 'insensitive' as const } },
+            { email: { contains: search, mode: 'insensitive' as const } }
+          ]
+        } : {};
+
+        const customers = await prisma.customers.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            _count: {
+              select: {
+                offers: true,
+                invoices: true,
+                appointments: true
+              }
+            }
+          }
+        });
+
+        return {
+          success: true,
+          customers,
+          count: customers.length,
+          message: `${customers.length} Kunden/Interessenten geladen.`
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Fehler beim Laden der Kunden',
+          message: error.message
+        };
+      }
+    }
     return this.callTool('get_customers', { search });
   }
 
@@ -151,6 +222,32 @@ export class MCPClient {
     address?: string;
     isProspect?: boolean;
   }) {
+    if (this.isProductionMode) {
+      try {
+        const customer = await prisma.customers.update({
+          where: { id },
+          data: {
+            ...(data.firstName && { firstName: data.firstName }),
+            ...(data.lastName && { lastName: data.lastName }),
+            ...(data.email !== undefined && { email: data.email || null }),
+            ...(data.phone !== undefined && { phone: data.phone || null }),
+            ...(data.address !== undefined && { address: data.address || null }),
+            ...(data.isProspect !== undefined && { isProspect: data.isProspect })
+          }
+        });
+        return {
+          success: true,
+          customer,
+          message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich aktualisiert.`
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Fehler beim Aktualisieren des Kunden',
+          message: error.message
+        };
+      }
+    }
     return this.callTool('update_customer', { id, ...data });
   }
 
@@ -162,10 +259,67 @@ export class MCPClient {
     laborCost?: number;
     totalCost?: number;
   }) {
+    if (this.isProductionMode) {
+      try {
+        const offer = await prisma.offers.create({
+          data: {
+            customerId: data.customerId,
+            jobDescription: data.jobDescription || null,
+            measurements: data.measurements || null,
+            materialsCost: data.materialsCost || 0,
+            laborCost: data.laborCost || 0,
+            totalCost: data.totalCost || 0,
+            status: 'draft'
+          },
+          include: {
+            customer: {
+              select: { firstName: true, lastName: true }
+            }
+          }
+        });
+        return {
+          success: true,
+          offer,
+          message: `Angebot für ${offer.customer.firstName} ${offer.customer.lastName} erfolgreich erstellt.`
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Fehler beim Erstellen des Angebots',
+          message: error.message
+        };
+      }
+    }
     return this.callTool('create_offer', data);
   }
 
   async getOffers(customerId?: string) {
+    if (this.isProductionMode) {
+      try {
+        const where = customerId ? { customerId } : {};
+        const offers = await prisma.offers.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            customer: {
+              select: { firstName: true, lastName: true, email: true }
+            }
+          }
+        });
+        return {
+          success: true,
+          offers,
+          count: offers.length,
+          message: `${offers.length} Angebote geladen.`
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Fehler beim Laden der Angebote',
+          message: error.message
+        };
+      }
+    }
     return this.callTool('get_offers', { customerId });
   }
 
