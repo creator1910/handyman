@@ -12,8 +12,8 @@ export class MCPClient {
     this.isProduction = process.env.NODE_ENV === 'production';
     // Use the MCP API route endpoint - in production, we can use relative URLs
     this.baseUrl = this.isProduction
-      ? '/api/mcp-simple'
-      : 'http://localhost:3004/api/mcp-simple';
+      ? `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''}/api/mcp-simple`
+      : 'http://localhost:3005/api/mcp-simple';
 
     console.log('MCP Client initialized:', {
       isProduction: this.isProduction,
@@ -30,13 +30,16 @@ export class MCPClient {
       baseUrl: this.baseUrl
     });
 
-    if (!this.isProduction) {
-      // In development, use direct database operations for now
-      console.log('Using direct database operations (development mode)');
-      return this.handleToolDirectly(name, arguments_);
-    }
+    // Always use direct database operations - HTTP calls don't work well in serverless
+    console.log('Using direct database operations');
+    return this.handleToolDirectly(name, arguments_);
 
-    console.log('Using HTTP MCP calls (production mode)');
+    // Commented out HTTP approach - doesn't work reliably in Vercel serverless
+    // if (!this.isProduction) {
+    //   console.log('Using direct database operations (development mode)');
+    //   return this.handleToolDirectly(name, arguments_);
+    // }
+    // console.log('Using HTTP MCP calls (production mode)');
     try {
       const response = await fetch(`${this.baseUrl}`, {
         method: 'POST',
