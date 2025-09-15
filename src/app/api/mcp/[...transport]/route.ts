@@ -174,9 +174,14 @@ const handler = createMcpHandler((server) => {
     },
     async ({ customerId, jobDescription, measurements, materialsCost, laborCost, totalCost }) => {
       try {
+        // Generate offer number
+        const offerCount = await prisma.offer.count()
+        const offerNumber = `ANG-${new Date().getFullYear()}-${String(offerCount + 1).padStart(4, '0')}`
+
         const offer = await prisma.offer.create({
           data: {
             customerId,
+            offerNumber,
             jobDescription: jobDescription || null,
             measurements: measurements || null,
             materialsCost: materialsCost || 0,
