@@ -15,7 +15,7 @@ export class MCPClient {
 
   constructor() {
     // Check if we're in a serverless environment (Vercel)
-    this.isProductionMode = process.env.VERCEL || process.env.NODE_ENV === 'production';
+    this.isProductionMode = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
 
     if (!this.isProductionMode) {
       this.startMCPServer();
