@@ -5,19 +5,20 @@ export async function GET(req: NextRequest) {
   try {
     console.log('Testing MCP client...')
     const mcpClient = getMCPClient()
-    
-    // Test basic functionality
-    const tools = await mcpClient.listTools()
-    console.log('MCP tools:', tools)
-    
+
     // Test customer retrieval
     const customers = await mcpClient.getCustomers()
     console.log('MCP customers:', customers)
-    
+
+    // Test offers retrieval
+    const offers = await mcpClient.getOffers()
+    console.log('MCP offers:', offers)
+
     return new Response(JSON.stringify({
       success: true,
-      tools: tools.map(t => t.name),
-      customers: customers
+      message: 'MCP client working via HTTP transport',
+      customers: customers,
+      offers: offers
     }, null, 2), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
