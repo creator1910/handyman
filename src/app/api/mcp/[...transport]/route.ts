@@ -4,60 +4,130 @@ import { prisma } from '@/lib/prisma';
 
 export const maxDuration = 30;
 
-const handler = createMcpHandler({
-  name: 'HandyAI CRM Server',
-  version: '1.0.0',
-  tools: {
-    create_customer: {
-      description: 'Erstellt einen neuen Kunden oder Interessenten im CRM System',
-      inputSchema: z.object({
-        firstName: z.string().min(1, 'Vorname ist erforderlich'),
-        lastName: z.string().min(1, 'Nachname ist erforderlich'),
-        email: z.string().email('Gültige E-Mail erforderlich').optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-        isProspect: z.boolean().default(true)
-      }),
-      handler: async ({ firstName, lastName, email, phone, address, isProspect }) => {
+const handler = createMcpHandler(async (server) => {
+  server.setRequestHandler('tools/list', async () => {
+    return {
+      tools: [
+        {
+          name: 'create_customer',
+          description: 'Erstellt einen neuen Kunden oder Interessenten im CRM System',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              firstName: { type: 'string', description: 'Vorname' },
+              lastName: { type: 'string', description: 'Nachname' },
+              email: { type: 'string', description: 'E-Mail-Adresse' },
+              phone: { type: 'string', description: 'Telefonnummer' },
+              address: { type: 'string', description: 'Adresse' },
+              isProspect: { type: 'boolean', description: 'Ist Interessent' }
+            },
+            required: ['firstName', 'lastName']
+          }
+        },
+        {
+          name: 'get_customers',
+          description: 'Lädt alle Kunden oder sucht nach bestimmten Kunden',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              search: { type: 'string', description: 'Suchbegriff für Name oder E-Mail' }
+            }
+          }
+        },
+        {
+          name: 'update_customer',
+          description: 'Aktualisiert einen bestehenden Kunden',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Kunden-ID' },
+              firstName: { type: 'string', description: 'Vorname' },
+              lastName: { type: 'string', description: 'Nachname' },
+              email: { type: 'string', description: 'E-Mail-Adresse' },
+              phone: { type: 'string', description: 'Telefonnummer' },
+              address: { type: 'string', description: 'Adresse' },
+              isProspect: { type: 'boolean', description: 'Ist Interessent' }
+            },
+            required: ['id']
+          }
+        },
+        {
+          name: 'create_offer',
+          description: 'Erstellt ein neues Angebot für einen Kunden',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              customerId: { type: 'string', description: 'Kunden-ID' },
+              jobDescription: { type: 'string', description: 'Arbeitsbeschreibung' },
+              measurements: { type: 'string', description: 'Maße' },
+              materialsCost: { type: 'number', description: 'Materialkosten' },
+              laborCost: { type: 'number', description: 'Arbeitskosten' },
+              totalCost: { type: 'number', description: 'Gesamtkosten' }
+            },
+            required: ['customerId']
+          }
+        },
+        {
+          name: 'get_offers',
+          description: 'Lädt alle Angebote oder Angebote für einen bestimmten Kunden',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              customerId: { type: 'string', description: 'Kunden-ID' }
+            }
+          }
+        }
+      ]
+    };
+  });
+
+  server.setRequestHandler('tools/call', async (request) => {
+    const { name, arguments: args } = request.params;
+
+    switch (name) {
+      case 'create_customer':
         try {
           const customer = await prisma.customers.create({
             data: {
-              firstName,
-              lastName,
-              email: email || null,
-              phone: phone || null,
-              address: address || null,
-              isProspect: isProspect ?? true
+              firstName: args.firstName,
+              lastName: args.lastName,
+              email: args.email || null,
+              phone: args.phone || null,
+              address: args.address || null,
+              isProspect: args.isProspect ?? true
             }
           });
 
           return {
-            success: true,
-            customer,
-            message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich erstellt.`
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                customer,
+                message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich erstellt.`
+              })
+            }]
           };
         } catch (error: any) {
           return {
-            success: false,
-            error: 'Fehler beim Erstellen des Kunden',
-            message: error.message
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Fehler beim Erstellen des Kunden',
+                message: error.message
+              })
+            }]
           };
         }
-      }
-    },
 
-    get_customers: {
-      description: 'Lädt alle Kunden oder sucht nach bestimmten Kunden',
-      inputSchema: z.object({
-        search: z.string().optional().describe('Suchbegriff für Name oder E-Mail')
-      }),
-      handler: async ({ search }) => {
+      case 'get_customers':
         try {
-          const where = search ? {
+          const where = args.search ? {
             OR: [
-              { firstName: { contains: search, mode: 'insensitive' as const } },
-              { lastName: { contains: search, mode: 'insensitive' as const } },
-              { email: { contains: search, mode: 'insensitive' as const } }
+              { firstName: { contains: args.search, mode: 'insensitive' as const } },
+              { lastName: { contains: args.search, mode: 'insensitive' as const } },
+              { email: { contains: args.search, mode: 'insensitive' as const } }
             ]
           } : {};
 
@@ -76,34 +146,32 @@ const handler = createMcpHandler({
           });
 
           return {
-            success: true,
-            customers,
-            count: customers.length,
-            message: `${customers.length} Kunden/Interessenten geladen.`
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                customers,
+                count: customers.length,
+                message: `${customers.length} Kunden/Interessenten geladen.`
+              })
+            }]
           };
         } catch (error: any) {
           return {
-            success: false,
-            error: 'Fehler beim Laden der Kunden',
-            message: error.message
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Fehler beim Laden der Kunden',
+                message: error.message
+              })
+            }]
           };
         }
-      }
-    },
 
-    update_customer: {
-      description: 'Aktualisiert einen bestehenden Kunden',
-      inputSchema: z.object({
-        id: z.string().describe('Die ID des zu aktualisierenden Kunden'),
-        firstName: z.string().optional(),
-        lastName: z.string().optional(),
-        email: z.string().optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-        isProspect: z.boolean().optional()
-      }),
-      handler: async ({ id, ...data }) => {
+      case 'update_customer':
         try {
+          const { id, ...data } = args;
           const customer = await prisma.customers.update({
             where: { id },
             data: {
@@ -117,40 +185,38 @@ const handler = createMcpHandler({
           });
 
           return {
-            success: true,
-            customer,
-            message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich aktualisiert.`
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                customer,
+                message: `Kunde ${customer.firstName} ${customer.lastName} erfolgreich aktualisiert.`
+              })
+            }]
           };
         } catch (error: any) {
           return {
-            success: false,
-            error: 'Fehler beim Aktualisieren des Kunden',
-            message: error.message
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Fehler beim Aktualisieren des Kunden',
+                message: error.message
+              })
+            }]
           };
         }
-      }
-    },
 
-    create_offer: {
-      description: 'Erstellt ein neues Angebot für einen Kunden',
-      inputSchema: z.object({
-        customerId: z.string().cuid('Ungültige Kunden-ID'),
-        jobDescription: z.string().optional(),
-        measurements: z.string().optional(),
-        materialsCost: z.number().min(0).default(0),
-        laborCost: z.number().min(0).default(0),
-        totalCost: z.number().min(0).default(0)
-      }),
-      handler: async ({ customerId, jobDescription, measurements, materialsCost, laborCost, totalCost }) => {
+      case 'create_offer':
         try {
           const offer = await prisma.offers.create({
             data: {
-              customerId,
-              jobDescription: jobDescription || null,
-              measurements: measurements || null,
-              materialsCost: materialsCost || 0,
-              laborCost: laborCost || 0,
-              totalCost: totalCost || 0,
+              customerId: args.customerId,
+              jobDescription: args.jobDescription || null,
+              measurements: args.measurements || null,
+              materialsCost: args.materialsCost || 0,
+              laborCost: args.laborCost || 0,
+              totalCost: args.totalCost || 0,
               status: 'draft'
             },
             include: {
@@ -161,28 +227,31 @@ const handler = createMcpHandler({
           });
 
           return {
-            success: true,
-            offer,
-            message: `Angebot für ${offer.customer.firstName} ${offer.customer.lastName} erfolgreich erstellt.`
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                offer,
+                message: `Angebot für ${offer.customer.firstName} ${offer.customer.lastName} erfolgreich erstellt.`
+              })
+            }]
           };
         } catch (error: any) {
           return {
-            success: false,
-            error: 'Fehler beim Erstellen des Angebots',
-            message: error.message
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Fehler beim Erstellen des Angebots',
+                message: error.message
+              })
+            }]
           };
         }
-      }
-    },
 
-    get_offers: {
-      description: 'Lädt alle Angebote oder Angebote für einen bestimmten Kunden',
-      inputSchema: z.object({
-        customerId: z.string().optional().describe('ID des Kunden für spezifische Angebote')
-      }),
-      handler: async ({ customerId }) => {
+      case 'get_offers':
         try {
-          const where = customerId ? { customerId } : {};
+          const where = args.customerId ? { customerId: args.customerId } : {};
           const offers = await prisma.offers.findMany({
             where,
             orderBy: { createdAt: 'desc' },
@@ -194,21 +263,33 @@ const handler = createMcpHandler({
           });
 
           return {
-            success: true,
-            offers,
-            count: offers.length,
-            message: `${offers.length} Angebote geladen.`
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                offers,
+                count: offers.length,
+                message: `${offers.length} Angebote geladen.`
+              })
+            }]
           };
         } catch (error: any) {
           return {
-            success: false,
-            error: 'Fehler beim Laden der Angebote',
-            message: error.message
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Fehler beim Laden der Angebote',
+                message: error.message
+              })
+            }]
           };
         }
-      }
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
     }
-  }
+  });
 });
 
 export const { GET, POST } = handler;
