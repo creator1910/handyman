@@ -14,14 +14,29 @@ export class MCPClient {
     this.baseUrl = this.isProduction
       ? '/api/mcp-simple'
       : 'http://localhost:3004/api/mcp-simple';
+
+    console.log('MCP Client initialized:', {
+      isProduction: this.isProduction,
+      baseUrl: this.baseUrl,
+      NODE_ENV: process.env.NODE_ENV
+    });
   }
 
   private async callTool(name: string, arguments_: any) {
+    console.log('MCP callTool called:', {
+      name,
+      arguments: arguments_,
+      isProduction: this.isProduction,
+      baseUrl: this.baseUrl
+    });
+
     if (!this.isProduction) {
       // In development, use direct database operations for now
+      console.log('Using direct database operations (development mode)');
       return this.handleToolDirectly(name, arguments_);
     }
 
+    console.log('Using HTTP MCP calls (production mode)');
     try {
       const response = await fetch(`${this.baseUrl}`, {
         method: 'POST',
