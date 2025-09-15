@@ -19,7 +19,23 @@
       "Bash(git restore:*)",
       "Bash(npm ls:*)",
       "WebFetch(domain:vercel.com)",
-      "WebFetch(domain:ai-sdk.dev)"
+      "WebFetch(domain:ai-sdk.dev)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx next dev:*)",
+      "Bash(git rm:*)",
+      "WebFetch(domain:sdk.vercel.ai)",
+      "WebFetch(domain:diamantai.substack.com)",
+      "Bash(npx prisma generate:*)",
+      "Bash(cmd /c:*)",
+      "Bash(cp:*)",
+      "Bash(copy ..prismaschema.prisma mcp-crm-serverprisma)",
+      "Bash(npx prisma:*)",
+      "Bash(git reset:*)",
+      "WebFetch(domain:github.com)",
+      "WebSearch"
     ],
     "deny": []
   }
