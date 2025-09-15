@@ -267,4 +267,5 @@ const handler = createMcpHandler((server) => {
   );
 });
 
-export const { GET, POST } = handler;
+export const GET = handler;
+export const POST = handler;
