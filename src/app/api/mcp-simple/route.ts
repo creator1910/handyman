@@ -1,13 +1,5 @@
 import { NextRequest } from 'next/server';
-
-// Try to import prisma, but handle if it fails in production
-let prisma: any;
-try {
-  prisma = require('@/lib/prisma').prisma;
-} catch (error) {
-  console.error('Prisma import failed:', error);
-  prisma = null;
-}
+import { prisma } from '@/lib/prisma';
 
 export const maxDuration = 30;
 
@@ -51,34 +43,6 @@ export async function POST(req: NextRequest) {
 
 async function createCustomer(args: any) {
   try {
-    // If no prisma (production without DB), return mock response
-    if (!prisma) {
-      const mockCustomer = {
-        id: `mock-new-${Date.now()}`,
-        firstName: args.firstName,
-        lastName: args.lastName,
-        email: args.email || null,
-        phone: args.phone || null,
-        address: args.address || null,
-        isProspect: args.isProspect ?? true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      return Response.json({
-        result: {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              customer: mockCustomer,
-              message: `Kunde ${mockCustomer.firstName} ${mockCustomer.lastName} erfolgreich erstellt (Demo-Modus).`
-            })
-          }]
-        }
-      });
-    }
-
     const customer = await prisma.customer.create({
       data: {
         firstName: args.firstName,
@@ -120,58 +84,6 @@ async function createCustomer(args: any) {
 
 async function getCustomers(args: any) {
   try {
-    // If no prisma (production without DB), return mock data
-    if (!prisma) {
-      const mockCustomers = [
-        {
-          id: "mock-1",
-          firstName: "Max",
-          lastName: "Mustermann",
-          email: "max@example.com",
-          phone: "0123456789",
-          address: "Musterstraße 1, 12345 Berlin",
-          isProspect: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          _count: { offers: 0, invoices: 0, appointments: 0 }
-        },
-        {
-          id: "mock-2",
-          firstName: "Maria",
-          lastName: "Schmidt",
-          email: "maria@example.com",
-          phone: "0987654321",
-          address: "Beispielweg 2, 54321 Hamburg",
-          isProspect: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          _count: { offers: 1, invoices: 1, appointments: 2 }
-        }
-      ];
-
-      const filteredCustomers = args.search
-        ? mockCustomers.filter(c =>
-            c.firstName.toLowerCase().includes(args.search.toLowerCase()) ||
-            c.lastName.toLowerCase().includes(args.search.toLowerCase()) ||
-            c.email.toLowerCase().includes(args.search.toLowerCase())
-          )
-        : mockCustomers;
-
-      return Response.json({
-        result: {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              customers: filteredCustomers,
-              count: filteredCustomers.length,
-              message: `${filteredCustomers.length} Kunden/Interessenten geladen (Demo-Daten).`
-            })
-          }]
-        }
-      });
-    }
-
     const where = args.search ? {
       OR: [
         { firstName: { contains: args.search, mode: 'insensitive' as const } },
