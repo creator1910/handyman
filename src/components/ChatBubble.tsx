@@ -82,19 +82,19 @@ export default function ChatBubble({ role, content, timestamp, actions, toolCall
   
   return (
     <div className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}>
-      <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start', 'max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-xl')}>
+      <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start', 'max-w-2xl w-full')}>
         {/* Bubble */}
         <div
           className={cn(
-            'rounded-2xl px-4 py-3 shadow-soft border',
+            'rounded-2xl px-5 py-4 shadow-sm border',
             isUser 
-              ? 'bg-surface border-border ml-4' 
-              : 'bg-white border-border mr-4'
+              ? 'bg-orange-500 text-white border-orange-500 ml-8' 
+              : 'bg-white border-gray-200 mr-8'
           )}
         >
           {content && (
-            <div className="text-[15px] leading-6">
-              <MarkdownText className="text-[15px] leading-6">
+            <div className={cn('text-base leading-7', isUser ? 'text-white' : 'text-gray-900')}>
+              <MarkdownText className={cn('text-base leading-7', isUser ? 'text-white' : 'text-gray-900')}>
                 {processHandwerkerText(content)}
               </MarkdownText>
             </div>
@@ -102,10 +102,10 @@ export default function ChatBubble({ role, content, timestamp, actions, toolCall
           
           {/* Tool calls display */}
           {toolCalls && toolCalls.length > 0 && (
-            <div className={cn('space-y-3', content ? 'mt-3 pt-3 border-t border-gray-200' : '')}>
+            <div className={cn('space-y-3', content ? 'mt-4 pt-4 border-t' : '', isUser ? 'border-orange-400' : 'border-gray-200')}>
               {toolCalls.map((toolCall, index) => (
-                <div key={toolCall.id || index} className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-sm font-medium text-gray-700 mb-2">
+                <div key={toolCall.id || index} className={cn('rounded-lg p-3', isUser ? 'bg-orange-400/20' : 'bg-gray-50')}>
+                  <div className={cn('text-sm font-medium mb-2', isUser ? 'text-white' : 'text-gray-700')}>
                     🔧 {formatToolCallDescription(toolCall)}
                   </div>
                   {toolCall.result && formatToolCallResult(toolCall)}
@@ -116,7 +116,7 @@ export default function ChatBubble({ role, content, timestamp, actions, toolCall
         </div>
         
         {/* Timestamp */}
-        <div className={cn('mt-1 px-2 text-xs text-muted', isUser ? 'mr-1' : 'ml-1')}>
+        <div className={cn('mt-2 px-2 text-xs text-gray-500', isUser ? 'mr-1' : 'ml-1')}>
           {timestamp.toLocaleTimeString('de-DE', { 
             hour: '2-digit', 
             minute: '2-digit' 
@@ -125,7 +125,7 @@ export default function ChatBubble({ role, content, timestamp, actions, toolCall
         
         {/* Actions for AI messages */}
         {!isUser && actions && (
-          <div className="mt-3 mr-4">
+          <div className="mt-4 w-full">
             {actions}
           </div>
         )}

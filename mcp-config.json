@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "handyai-crm": {
+      "command": "node",
+      "args": ["./mcp-crm-server/dist/index.js"],
+      "env": {
+        "DATABASE_URL": "file:./prisma/dev.db"
+      }
+    }
+  }
+}
