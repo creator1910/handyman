@@ -35,7 +35,8 @@
       "Bash(npx prisma:*)",
       "Bash(git reset:*)",
       "WebFetch(domain:github.com)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:www.npmjs.com)"
     ],
     "deny": []
   }

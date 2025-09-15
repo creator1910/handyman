@@ -12,8 +12,8 @@ export class MCPClient {
     this.isProduction = process.env.NODE_ENV === 'production';
     // Use the MCP API route endpoint - in production, we can use relative URLs
     this.baseUrl = this.isProduction
-      ? '/api/mcp'
-      : 'http://localhost:3001/api/mcp';
+      ? '/api/mcp-simple'
+      : 'http://localhost:3004/api/mcp-simple';
   }
 
   private async callTool(name: string, arguments_: any) {
@@ -23,7 +23,7 @@ export class MCPClient {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/stateless`, {
+      const response = await fetch(`${this.baseUrl}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
