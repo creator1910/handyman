@@ -18,7 +18,7 @@ const handler = createMcpHandler((server) => {
     },
     async ({ firstName, lastName, email, phone, address, isProspect }) => {
       try {
-        const customer = await prisma.Customer.create({
+        const customer = await prisma.customer.create({
           data: {
             firstName,
             lastName,
@@ -70,7 +70,7 @@ const handler = createMcpHandler((server) => {
           ]
         } : {};
 
-        const customers = await prisma.Customer.findMany({
+        const customers = await prisma.customer.findMany({
           where,
           orderBy: { createdAt: 'desc' },
           include: {
@@ -124,7 +124,7 @@ const handler = createMcpHandler((server) => {
     },
     async ({ id, ...data }) => {
       try {
-        const customer = await prisma.Customer.update({
+        const customer = await prisma.customer.update({
           where: { id },
           data: {
             ...(data.firstName && { firstName: data.firstName }),
@@ -174,7 +174,7 @@ const handler = createMcpHandler((server) => {
     },
     async ({ customerId, jobDescription, measurements, materialsCost, laborCost, totalCost }) => {
       try {
-        const offer = await prisma.Offer.create({
+        const offer = await prisma.offer.create({
           data: {
             customerId,
             jobDescription: jobDescription || null,
@@ -225,7 +225,7 @@ const handler = createMcpHandler((server) => {
     async ({ customerId }) => {
       try {
         const where = customerId ? { customerId } : {};
-        const offers = await prisma.Offer.findMany({
+        const offers = await prisma.offer.findMany({
           where,
           orderBy: { createdAt: 'desc' },
           include: {
