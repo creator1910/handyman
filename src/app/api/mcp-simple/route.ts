@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 
 export const maxDuration = 30;
 
@@ -43,16 +43,20 @@ export async function POST(req: NextRequest) {
 
 async function createCustomer(args: any) {
   try {
-    const customer = await prisma.customer.create({
-      data: {
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .insert({
         firstName: args.firstName,
         lastName: args.lastName,
         email: args.email || null,
         phone: args.phone || null,
         address: args.address || null,
         isProspect: args.isProspect ?? true
-      }
-    });
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return Response.json({
       result: {
@@ -84,27 +88,20 @@ async function createCustomer(args: any) {
 
 async function getCustomers(args: any) {
   try {
-    const where = args.search ? {
-      OR: [
-        { firstName: { contains: args.search, mode: 'insensitive' as const } },
-        { lastName: { contains: args.search, mode: 'insensitive' as const } },
-        { email: { contains: args.search, mode: 'insensitive' as const } }
-      ]
-    } : {};
+    let query = supabase
+      .from('customers')
+      .select('*, offers(count), invoices(count), appointments(count)')
+      .order('createdAt', { ascending: false });
 
-    const customers = await prisma.customer.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: {
-            offers: true,
-            invoices: true,
-            appointments: true
-          }
-        }
-      }
-    });
+    if (args.search) {
+      query = query.or(
+        `firstName.ilike.%${args.search}%,lastName.ilike.%${args.search}%,email.ilike.%${args.search}%`
+      );
+    }
+
+    const { data: customers, error } = await query;
+
+    if (error) throw error;
 
     return Response.json({
       result: {
@@ -112,9 +109,9 @@ async function getCustomers(args: any) {
           type: 'text',
           text: JSON.stringify({
             success: true,
-            customers,
-            count: customers.length,
-            message: `${customers.length} Kunden/Interessenten geladen.`
+            customers: customers || [],
+            count: customers?.length || 0,
+            message: `${customers?.length || 0} Kunden/Interessenten geladen.`
           })
         }]
       }
@@ -138,17 +135,23 @@ async function getCustomers(args: any) {
 async function updateCustomer(args: any) {
   try {
     const { id, ...data } = args;
-    const customer = await prisma.customer.update({
-      where: { id },
-      data: {
-        ...(data.firstName && { firstName: data.firstName }),
-        ...(data.lastName && { lastName: data.lastName }),
-        ...(data.email !== undefined && { email: data.email || null }),
-        ...(data.phone !== undefined && { phone: data.phone || null }),
-        ...(data.address !== undefined && { address: data.address || null }),
-        ...(data.isProspect !== undefined && { isProspect: data.isProspect })
-      }
-    });
+    const updateData: any = {};
+
+    if (data.firstName) updateData.firstName = data.firstName;
+    if (data.lastName) updateData.lastName = data.lastName;
+    if (data.email !== undefined) updateData.email = data.email || null;
+    if (data.phone !== undefined) updateData.phone = data.phone || null;
+    if (data.address !== undefined) updateData.address = data.address || null;
+    if (data.isProspect !== undefined) updateData.isProspect = data.isProspect;
+
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return Response.json({
       result: {
@@ -180,11 +183,15 @@ async function updateCustomer(args: any) {
 
 async function createOffer(args: any) {
   try {
-    const offerCount = await prisma.offer.count();
-    const offerNumber = `ANG-${new Date().getFullYear()}-${String(offerCount + 1).padStart(4, '0')}`;
+    const { count } = await supabase
+      .from('offers')
+      .select('*', { count: 'exact', head: true });
 
-    const offer = await prisma.offer.create({
-      data: {
+    const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
+
+    const { data: offer, error } = await supabase
+      .from('offers')
+      .insert({
         customerId: args.customerId,
         offerNumber,
         jobDescription: args.jobDescription || null,
@@ -193,13 +200,17 @@ async function createOffer(args: any) {
         laborCost: args.laborCost || 0,
         totalCost: args.totalCost || 0,
         status: 'DRAFT'
-      },
-      include: {
-        customer: {
-          select: { firstName: true, lastName: true }
-        }
-      }
-    });
+      })
+      .select(`
+        *,
+        customer:customers!customerId (
+          firstName,
+          lastName
+        )
+      `)
+      .single();
+
+    if (error) throw error;
 
     return Response.json({
       result: {
@@ -231,16 +242,25 @@ async function createOffer(args: any) {
 
 async function getOffers(args: any) {
   try {
-    const where = args.customerId ? { customerId: args.customerId } : {};
-    const offers = await prisma.offer.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: {
-          select: { firstName: true, lastName: true, email: true }
-        }
-      }
-    });
+    let query = supabase
+      .from('offers')
+      .select(`
+        *,
+        customer:customers!customerId (
+          firstName,
+          lastName,
+          email
+        )
+      `)
+      .order('createdAt', { ascending: false });
+
+    if (args.customerId) {
+      query = query.eq('customerId', args.customerId);
+    }
+
+    const { data: offers, error } = await query;
+
+    if (error) throw error;
 
     return Response.json({
       result: {
@@ -248,9 +268,9 @@ async function getOffers(args: any) {
           type: 'text',
           text: JSON.stringify({
             success: true,
-            offers,
-            count: offers.length,
-            message: `${offers.length} Angebote geladen.`
+            offers: offers || [],
+            count: offers?.length || 0,
+            message: `${offers?.length || 0} Angebote geladen.`
           })
         }]
       }
