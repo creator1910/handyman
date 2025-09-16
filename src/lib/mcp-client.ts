@@ -1,4 +1,4 @@
-import { prisma } from './prisma';
+import { supabase, Customer, Offer } from './supabase';
 
 /**
  * MCP Client for communicating with the HandyAI CRM MCP Server
@@ -71,16 +71,21 @@ export class MCPClient {
     switch (name) {
       case 'create_customer':
         try {
-          const customer = await prisma.customer.create({
-            data: {
+          const { data: customer, error } = await supabase
+            .from('customers')
+            .insert({
               firstName: arguments_.firstName,
               lastName: arguments_.lastName,
               email: arguments_.email || null,
               phone: arguments_.phone || null,
               address: arguments_.address || null,
               isProspect: arguments_.isProspect ?? true
-            }
-          });
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
           return {
             success: true,
             customer,
@@ -96,33 +101,26 @@ export class MCPClient {
 
       case 'get_customers':
         try {
-          const where = arguments_.search ? {
-            OR: [
-              { firstName: { contains: arguments_.search, mode: 'insensitive' as const } },
-              { lastName: { contains: arguments_.search, mode: 'insensitive' as const } },
-              { email: { contains: arguments_.search, mode: 'insensitive' as const } }
-            ]
-          } : {};
+          let query = supabase
+            .from('customers')
+            .select('*, offers(count), invoices(count), appointments(count)')
+            .order('createdAt', { ascending: false });
 
-          const customers = await prisma.customer.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              _count: {
-                select: {
-                  offers: true,
-                  invoices: true,
-                  appointments: true
-                }
-              }
-            }
-          });
+          if (arguments_.search) {
+            query = query.or(
+              `firstName.ilike.%${arguments_.search}%,lastName.ilike.%${arguments_.search}%,email.ilike.%${arguments_.search}%`
+            );
+          }
+
+          const { data: customers, error } = await query;
+
+          if (error) throw error;
 
           return {
             success: true,
-            customers,
-            count: customers.length,
-            message: `${customers.length} Kunden/Interessenten geladen.`
+            customers: customers || [],
+            count: customers?.length || 0,
+            message: `${customers?.length || 0} Kunden/Interessenten geladen.`
           };
         } catch (error: any) {
           return {
@@ -135,17 +133,24 @@ export class MCPClient {
       case 'update_customer':
         try {
           const { id, ...data } = arguments_;
-          const customer = await prisma.customer.update({
-            where: { id },
-            data: {
-              ...(data.firstName && { firstName: data.firstName }),
-              ...(data.lastName && { lastName: data.lastName }),
-              ...(data.email !== undefined && { email: data.email || null }),
-              ...(data.phone !== undefined && { phone: data.phone || null }),
-              ...(data.address !== undefined && { address: data.address || null }),
-              ...(data.isProspect !== undefined && { isProspect: data.isProspect })
-            }
-          });
+          const updateData: any = {};
+
+          if (data.firstName) updateData.firstName = data.firstName;
+          if (data.lastName) updateData.lastName = data.lastName;
+          if (data.email !== undefined) updateData.email = data.email || null;
+          if (data.phone !== undefined) updateData.phone = data.phone || null;
+          if (data.address !== undefined) updateData.address = data.address || null;
+          if (data.isProspect !== undefined) updateData.isProspect = data.isProspect;
+
+          const { data: customer, error } = await supabase
+            .from('customers')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+          if (error) throw error;
+
           return {
             success: true,
             customer,
@@ -161,11 +166,15 @@ export class MCPClient {
 
       case 'create_offer':
         try {
-          const offerCount = await prisma.offer.count();
-          const offerNumber = `ANG-${new Date().getFullYear()}-${String(offerCount + 1).padStart(4, '0')}`;
+          const { count } = await supabase
+            .from('offers')
+            .select('*', { count: 'exact', head: true });
 
-          const offer = await prisma.offer.create({
-            data: {
+          const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
+
+          const { data: offer, error } = await supabase
+            .from('offers')
+            .insert({
               customerId: arguments_.customerId,
               offerNumber,
               jobDescription: arguments_.jobDescription || null,
@@ -174,13 +183,17 @@ export class MCPClient {
               laborCost: arguments_.laborCost || 0,
               totalCost: arguments_.totalCost || 0,
               status: 'DRAFT'
-            },
-            include: {
-              customer: {
-                select: { firstName: true, lastName: true }
-              }
-            }
-          });
+            })
+            .select(`
+              *,
+              customer:customers!customerId (
+                firstName,
+                lastName
+              )
+            `)
+            .single();
+
+          if (error) throw error;
 
           return {
             success: true,
@@ -197,22 +210,31 @@ export class MCPClient {
 
       case 'get_offers':
         try {
-          const where = arguments_.customerId ? { customerId: arguments_.customerId } : {};
-          const offers = await prisma.offer.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              customer: {
-                select: { firstName: true, lastName: true, email: true }
-              }
-            }
-          });
+          let query = supabase
+            .from('offers')
+            .select(`
+              *,
+              customer:customers!customerId (
+                firstName,
+                lastName,
+                email
+              )
+            `)
+            .order('createdAt', { ascending: false });
+
+          if (arguments_.customerId) {
+            query = query.eq('customerId', arguments_.customerId);
+          }
+
+          const { data: offers, error } = await query;
+
+          if (error) throw error;
 
           return {
             success: true,
-            offers,
-            count: offers.length,
-            message: `${offers.length} Angebote geladen.`
+            offers: offers || [],
+            count: offers?.length || 0,
+            message: `${offers?.length || 0} Angebote geladen.`
           };
         } catch (error: any) {
           return {
