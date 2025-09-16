@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { createId } from '@paralleldrive/cuid2';
 
 export const maxDuration = 30;
 
@@ -43,15 +44,19 @@ export async function POST(req: NextRequest) {
 
 async function createCustomer(args: any) {
   try {
+    const now = new Date().toISOString();
     const { data: customer, error } = await supabase
       .from('customers')
       .insert({
+        id: createId(),
         firstName: args.firstName,
         lastName: args.lastName,
         email: args.email || null,
         phone: args.phone || null,
         address: args.address || null,
-        isProspect: args.isProspect ?? true
+        isProspect: args.isProspect ?? true,
+        createdAt: now,
+        updatedAt: now
       })
       .select()
       .single();
@@ -189,9 +194,11 @@ async function createOffer(args: any) {
 
     const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
 
+    const now = new Date().toISOString();
     const { data: offer, error } = await supabase
       .from('offers')
       .insert({
+        id: createId(),
         customerId: args.customerId,
         offerNumber,
         jobDescription: args.jobDescription || null,
@@ -199,7 +206,9 @@ async function createOffer(args: any) {
         materialsCost: args.materialsCost || 0,
         laborCost: args.laborCost || 0,
         totalCost: args.totalCost || 0,
-        status: 'DRAFT'
+        status: 'DRAFT',
+        createdAt: now,
+        updatedAt: now
       })
       .select(`
         *,

@@ -1,4 +1,5 @@
 import { supabase, Customer, Offer } from './supabase';
+import { createId } from '@paralleldrive/cuid2';
 
 /**
  * MCP Client for communicating with the HandyAI CRM MCP Server
@@ -71,15 +72,19 @@ export class MCPClient {
     switch (name) {
       case 'create_customer':
         try {
+          const now = new Date().toISOString();
           const { data: customer, error } = await supabase
             .from('customers')
             .insert({
+              id: createId(),
               firstName: arguments_.firstName,
               lastName: arguments_.lastName,
               email: arguments_.email || null,
               phone: arguments_.phone || null,
               address: arguments_.address || null,
-              isProspect: arguments_.isProspect ?? true
+              isProspect: arguments_.isProspect ?? true,
+              createdAt: now,
+              updatedAt: now
             })
             .select()
             .single();
@@ -172,9 +177,11 @@ export class MCPClient {
 
           const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
 
+          const now = new Date().toISOString();
           const { data: offer, error } = await supabase
             .from('offers')
             .insert({
+              id: createId(),
               customerId: arguments_.customerId,
               offerNumber,
               jobDescription: arguments_.jobDescription || null,
@@ -182,7 +189,9 @@ export class MCPClient {
               materialsCost: arguments_.materialsCost || 0,
               laborCost: arguments_.laborCost || 0,
               totalCost: arguments_.totalCost || 0,
-              status: 'DRAFT'
+              status: 'DRAFT',
+              createdAt: now,
+              updatedAt: now
             })
             .select(`
               *,
