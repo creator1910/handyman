@@ -45,7 +45,7 @@ export async function GET(
     })
 
     // Return PDF as response
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Angebot-${offer.offerNumber}.pdf"`,
