@@ -70,6 +70,28 @@ export async function PUT(
 
     if (error) throw error
 
+    // 🎯 Auto-upgrade customer from "Interessent" to "Kunde" when offer is accepted
+    if (status === 'ACCEPTED' && offer.customer.isProspect) {
+      console.log(`🔄 Upgrading customer ${offer.customer.firstName} ${offer.customer.lastName} from Interessent to Kunde`)
+
+      const { error: customerError } = await supabase
+        .from('customers')
+        .update({
+          isProspect: false,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', offer.customerId)
+
+      if (customerError) {
+        console.error('Error upgrading customer status:', customerError)
+        // Don't fail the offer update if customer update fails
+      } else {
+        console.log(`✅ Customer ${offer.customer.firstName} ${offer.customer.lastName} is now a Kunde!`)
+        // Update the returned offer data to reflect the customer status change
+        offer.customer.isProspect = false
+      }
+    }
+
     return NextResponse.json(offer)
   } catch (error) {
     console.error('Error updating offer:', error)

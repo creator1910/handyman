@@ -32,15 +32,39 @@ interface Message {
   }
 }
 
+const CHAT_STORAGE_KEY = 'craft-ai-chat-history'
+const WELCOME_MESSAGE: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  content: '👋 Hallo! Ich bin dein craft.ai Assistent und helfe dir dabei, dein Handwerker-Business zu organisieren.\n\nSag mir einfach, was du brauchst:\n\n🎯 Schnellstart:\n- Erstelle einen neuen Kunden: Max Mustermann\n- Zeige mir alle meine Kunden\n- Erstelle ein Angebot für Maria Schmidt\n- Suche nach Kunden namens Weber\n\n💡 Einfach loslegen: Beschreib mir deinen Auftrag oder Kunden - ich kümmere mich um den Rest!'
+}
+
+// Helper function to load chat history from localStorage
+const loadChatHistory = (): Message[] => {
+  if (typeof window === 'undefined') return [WELCOME_MESSAGE] // SSR protection
+
+  try {
+    const savedMessages = localStorage.getItem(CHAT_STORAGE_KEY)
+    if (savedMessages) {
+      const parsedMessages = JSON.parse(savedMessages)
+      if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+        // Always ensure welcome message is first
+        const hasWelcome = parsedMessages.some(msg => msg.id === 'welcome')
+        if (!hasWelcome) {
+          return [WELCOME_MESSAGE, ...parsedMessages]
+        }
+        return parsedMessages
+      }
+    }
+  } catch (error) {
+    console.error('Error loading chat history:', error)
+  }
+  return [WELCOME_MESSAGE]
+}
+
 export default function ChatInterface({ onProspectSuggestion }: ChatInterfaceProps) {
   const router = useRouter()
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Hi! Ich bin dein craft.ai Handwerker-Assistent.\n\nErzähl mir von deinen Kunden oder Aufträgen - ich helfe dir bei der Verwaltung!\n\n**Was ich für dich tun kann:**\n• Kunden verwalten und erstellen\n• Angebote kalkulieren und erstellen\n• Kundendaten durchsuchen\n• Aufträge organisieren'
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>(() => loadChatHistory())
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -58,6 +82,16 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
+
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages))
+    } catch (error) {
+      console.error('Error saving chat history:', error)
+    }
+  }, [messages])
 
   useEffect(() => {
     scrollToBottom()
@@ -95,15 +129,21 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
       }
 
       const result = await response.json()
-      
+      console.log('Chat response result:', result)
+
       let assistantContent = result.content
 
       let quickActions: Message['quickActions'] = undefined
 
-      // If the AI used tools but didn't generate text, create a summary
-      if (!assistantContent && result.toolResults && result.toolResults.length > 0) {
+      // Process tool results (both when AI generates text and when it doesn't)
+      if (result.toolResults && result.toolResults.length > 0) {
+        console.log('Processing tool results:', result.toolResults)
         const toolResult = result.toolResults[0]
-        if (toolResult.toolName === 'getCustomers' && toolResult.output.success) {
+        console.log('First tool result:', toolResult)
+
+        // Check if this is a successful tool that should override the generic message
+        const shouldOverrideContent = !assistantContent || assistantContent.includes('Ich habe deine Anfrage bearbeitet')
+        if (toolResult.toolName === 'getCustomers' && toolResult.output.success && shouldOverrideContent) {
           const customers = toolResult.output.customers
 
           // Create table format for customers
@@ -123,7 +163,7 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           
           quickActions = { type: 'customer_list' }
           
-        } else if (toolResult.toolName === 'createCustomer' && toolResult.output.success) {
+        } else if (toolResult.toolName === 'createCustomer' && toolResult.output.success && shouldOverrideContent) {
           const customer = toolResult.output.customer
           assistantContent = `## Kunde erfolgreich erstellt\n\n` +
             `**${customer.firstName} ${customer.lastName}** wurde als ${customer.isProspect ? 'Interessent' : 'Kunde'} angelegt.\n\n` +
@@ -135,21 +175,32 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
             `| Status | ${customer.isProspect ? 'Interessent' : 'Kunde'} |\n\n` +
             `Der Kunde kann jetzt für Angebote und Rechnungen verwendet werden.`
             
-        } else if (toolResult.toolName === 'createOffer' && toolResult.output.success) {
+        } else if ((toolResult.toolName === 'createOffer' || toolResult.toolName === 'createOfferWithLookup' || toolResult.toolName === 'confirmOfferClient') && toolResult.output.success && shouldOverrideContent) {
           const offer = toolResult.output.offer
-          assistantContent = `## Angebot erfolgreich erstellt\n\n` +
-            `**Angebot ${offer.offerNumber}** für ${offer.customer.firstName} ${offer.customer.lastName}\n\n` +
-            `### Kostenaufstellung\n` +
-            `| Position | Betrag |\n|----------|--------|\n` +
-            `| Materialkosten | ${offer.materialsCost}€ |\n` +
-            `| Arbeitskosten | ${offer.laborCost}€ |\n` +
-            `| **Gesamtkosten** | **${offer.totalCost}€** |\n\n` +
-            `${offer.jobDescription ? `**Beschreibung:** ${offer.jobDescription}\n\n` : ''}` +
-            `Das Angebot ist bereit zum Versenden.`
+          const pdfUrl = toolResult.output.pdfUrl
+
+          if (offer && offer.offerNumber) {
+            assistantContent = `## Angebot erfolgreich erstellt\n\n` +
+              `Angebot ${offer.offerNumber} für ${offer.customer?.firstName || ''} ${offer.customer?.lastName || ''}\n\n` +
+              `## Kostenaufstellung\n` +
+              `| Position | Betrag |\n|----------|--------|\n` +
+              `| Materialkosten | ${offer.materialsCost || 0}€ |\n` +
+              `| Arbeitskosten | ${offer.laborCost || 0}€ |\n` +
+              `| Gesamtkosten | ${offer.totalCost || 0}€ |\n\n` +
+              `${offer.jobDescription ? `Beschreibung: ${offer.jobDescription}\n\n` : ''}` +
+              `${pdfUrl ? `📄 Angebot: ${pdfUrl}\n\n` : ''}` +
+              `Das Angebot ist bereit zum Versenden.`
+          } else {
+            // Use the message from the tool result if no detailed offer data
+            assistantContent = toolResult.output.message || 'Angebot wurde erstellt.'
+            if (pdfUrl) {
+              assistantContent += `\n\n📄 Angebot: ${pdfUrl}`
+            }
+          }
 
           quickActions = { type: 'offer_list' }
 
-        } else if (toolResult.toolName === 'findCustomer' && toolResult.output.success) {
+        } else if (toolResult.toolName === 'findCustomer' && toolResult.output.success && shouldOverrideContent) {
           const customers = toolResult.output.customers
           const bestMatch = toolResult.output.bestMatch
 
@@ -176,7 +227,7 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
               `Welcher Kunde ist gemeint?`
           }
 
-        } else if (toolResult.toolName === 'getCustomerDetails' && toolResult.output.success) {
+        } else if (toolResult.toolName === 'getCustomerDetails' && toolResult.output.success && shouldOverrideContent) {
           const customer = toolResult.output.customer
           const offersCount = customer.offers?.length || 0
           const invoicesCount = customer.invoices?.length || 0
@@ -203,6 +254,17 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
                 `| ${offer.offerNumber} | ${offer.totalCost}€ | ${offer.status} |`
               ).join('\n')
           }
+
+        } else if (toolResult.toolName === 'acceptOffer' && toolResult.output.success && shouldOverrideContent) {
+          const offer = toolResult.output.offer
+          assistantContent = `## Angebot akzeptiert! 🎉\n\n` +
+            `Angebot ${offer.offerNumber} für ${offer.customer.firstName} ${offer.customer.lastName} wurde erfolgreich akzeptiert.\n\n` +
+            `### Status-Update:\n` +
+            `- ✅ Angebot: **Angenommen**\n` +
+            `- 🎯 Kunde: **${offer.customer.firstName} ${offer.customer.lastName}** ist jetzt ein **Kunde** (nicht mehr Interessent)\n\n` +
+            `Der Kunde kann jetzt Rechnungen erhalten und weitere Aufträge bekommen.`
+
+          quickActions = { type: 'offer_list' }
         }
       }
 
@@ -318,6 +380,11 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
   }
 
 
+  const clearChatHistory = () => {
+    setMessages([WELCOME_MESSAGE])
+    localStorage.removeItem(CHAT_STORAGE_KEY)
+  }
+
   const handleQuickAction = async (action: string, data?: any) => {
     console.log('Quick action:', action, data)
 
@@ -378,8 +445,22 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
         {/* Header integrated into messages area */}
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-2">craft.ai Assistant</h1>
-            <p className="text-gray-600">Dein KI-Assistent für Handwerker-CRM</p>
+            <div className="flex justify-between items-center mb-4">
+              <div></div>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900 mb-2">craft.ai Assistant</h1>
+                <p className="text-gray-600">Dein KI-Assistent für Handwerker-CRM</p>
+              </div>
+              <button
+                onClick={clearChatHistory}
+                className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                title="Chat löschen"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 

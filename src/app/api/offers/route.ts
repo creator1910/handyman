@@ -2,19 +2,45 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 // GET /api/offers
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { data: offers, error } = await supabase
+    const { searchParams } = new URL(request.url)
+    const offerNumber = searchParams.get('offerNumber')
+    const customerName = searchParams.get('customerName')
+    const status = searchParams.get('status')
+
+    let query = supabase
       .from('offers')
       .select(`
         *,
         customer:customers!customerId (*)
       `)
-      .order('createdAt', { ascending: false })
+
+    // Filter by offer number if provided
+    if (offerNumber) {
+      query = query.eq('offerNumber', offerNumber)
+    }
+
+    // Filter by status if provided
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    const { data: offers, error } = await query.order('createdAt', { ascending: false })
 
     if (error) throw error
 
-    return NextResponse.json(offers || [])
+    let filteredOffers = offers || []
+
+    // Filter by customer name if provided (client-side filtering)
+    if (customerName && filteredOffers.length > 0) {
+      filteredOffers = filteredOffers.filter((offer: any) =>
+        `${offer.customer.firstName} ${offer.customer.lastName}`.toLowerCase()
+          .includes(customerName.toLowerCase())
+      )
+    }
+
+    return NextResponse.json(filteredOffers)
   } catch (error) {
     console.error('Error fetching offers:', error)
     return NextResponse.json(

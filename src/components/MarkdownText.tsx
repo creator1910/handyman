@@ -180,6 +180,20 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         return
       }
 
+      // Handle single # headings (# format) - fallback for h1
+      const h1Match = trimmedLine.match(/^#\s*(.+)$/)
+      if (h1Match) {
+        flushParagraph(index)
+        flushList(index)
+        flushTable(index)
+        elements.push(
+          <h1 key={`h1-${index}`} className="text-xl font-bold text-gray-900 mb-4 mt-6 first:mt-0">
+            {renderInlineMarkdown(h1Match[1])}
+          </h1>
+        )
+        return
+      }
+
       // Handle PDF links (🔗PDF: /api/offers/xxx/pdf or 📄 Angebot: /api/offers/xxx/pdf)
       const pdfMatch = trimmedLine.match(/^(?:🔗PDF:|📄\s*Angebot:)\s*(\S+)$/)
       if (pdfMatch) {
@@ -187,9 +201,13 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         flushList(index)
         flushTable(index)
         const pdfUrl = pdfMatch[1]
-        const filename = pdfUrl.includes('/offers/')
-          ? `Angebot-${pdfUrl.split('/')[3]}.pdf`
-          : 'dokument.pdf'
+        // Extract offer ID from URL and generate filename
+        let filename = 'angebot.pdf'
+        if (pdfUrl.includes('/offers/')) {
+          const offerId = pdfUrl.split('/')[3]
+          // We'll let the PDFViewer component fetch the offer number from the API
+          filename = `offer-${offerId}.pdf` // temporary, will be updated by component
+        }
         elements.push(
           <PDFViewer
             key={`pdf-${index}`}
@@ -237,8 +255,8 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
     const parts: React.ReactNode[] = []
     let currentIndex = 0
 
-    // Split by bold patterns
-    const boldRegex = /\*\*([^*]+)\*\*/g
+    // Split by bold patterns - handle both ** and single * for bold
+    const boldRegex = /\*\*([^*]+)\*\*|\*([^*]+)\*/g
     let match
 
     while ((match = boldRegex.exec(text)) !== null) {
@@ -248,10 +266,11 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         parts.push(...renderWithCode(beforeText, parts.length))
       }
 
-      // Add bold text
+      // Add bold text (match[1] for **, match[2] for single *)
+      const boldText = match[1] || match[2]
       parts.push(
         <strong key={`bold-${parts.length}`} className="font-semibold">
-          {match[1]}
+          {boldText}
         </strong>
       )
 
@@ -268,6 +287,46 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
   }
 
   const renderWithCode = (text: string, baseIndex: number): React.ReactNode[] => {
+    const parts: React.ReactNode[] = []
+    let currentIndex = 0
+
+    // Handle markdown links [text](url) first, then inline code
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
+    let match
+
+    while ((match = linkRegex.exec(text)) !== null) {
+      // Add text before the link
+      if (match.index > currentIndex) {
+        const beforeText = text.slice(currentIndex, match.index)
+        parts.push(...renderCodeInText(beforeText, baseIndex + parts.length))
+      }
+
+      // Add link
+      parts.push(
+        <a
+          key={`link-${baseIndex}-${parts.length}`}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          {match[1]}
+        </a>
+      )
+
+      currentIndex = match.index + match[0].length
+    }
+
+    // Add remaining text
+    if (currentIndex < text.length) {
+      const remainingText = text.slice(currentIndex)
+      parts.push(...renderCodeInText(remainingText, baseIndex + parts.length))
+    }
+
+    return parts.length > 0 ? parts : renderCodeInText(text, baseIndex)
+  }
+
+  const renderCodeInText = (text: string, baseIndex: number): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
     let currentIndex = 0
 

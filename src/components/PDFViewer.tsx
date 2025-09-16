@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface PDFViewerProps {
   url: string
@@ -8,22 +8,48 @@ interface PDFViewerProps {
 
 export function PDFViewer({ url, filename, className = '' }: PDFViewerProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [actualFilename, setActualFilename] = useState(filename || 'angebot.pdf')
+
+  // Fetch offer details to get the proper offer number for filename
+  useEffect(() => {
+    const fetchOfferDetails = async () => {
+      if (url.includes('/offers/')) {
+        try {
+          const offerId = url.split('/')[3]
+          const response = await fetch(`/api/offers/${offerId}`)
+          if (response.ok) {
+            const offer = await response.json()
+            if (offer.offerNumber) {
+              setActualFilename(`${offer.offerNumber}.pdf`)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching offer details:', error)
+          // Fallback to the provided filename
+        }
+      }
+    }
+
+    fetchOfferDetails()
+  }, [url])
 
   const handleDownload = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(url)
+      // Add download parameter to force download
+      const downloadUrl = url.includes('?') ? `${url}&download=true` : `${url}?download=true`
+      const response = await fetch(downloadUrl)
       const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
+      const blobUrl = window.URL.createObjectURL(blob)
 
       const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = filename || 'angebot.pdf'
+      link.href = blobUrl
+      link.download = actualFilename
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
 
-      window.URL.revokeObjectURL(downloadUrl)
+      window.URL.revokeObjectURL(blobUrl)
     } catch (error) {
       console.error('Error downloading PDF:', error)
     } finally {
@@ -47,7 +73,7 @@ export function PDFViewer({ url, filename, className = '' }: PDFViewerProps) {
 
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-900 truncate">
-            {filename || 'Angebot PDF'}
+            {actualFilename.replace('.pdf', '')}
           </h4>
           <p className="text-xs text-gray-500 mt-1">
             PDF-Dokument bereit zum Download

@@ -223,6 +223,109 @@ Das Angebot wurde erfolgreich erstellt und steht als PDF zum Download bereit.`
               }
             }
           }
+        }),
+
+        acceptOffer: tool({
+          description: 'Akzeptiert ein Angebot und wandelt den Interessenten automatisch in einen Kunden um. Verwende diese Funktion wenn der User ein Angebot annehmen möchte. Beispiele: "Akzeptiere Angebot ANG-2025-0003", "Angebot für Max Mustermann annehmen"',
+          inputSchema: z.object({
+            offerNumber: z.string().optional().describe('Angebotsnummer (z.B. ANG-2025-0003)'),
+            customerName: z.string().optional().describe('Name des Kunden falls keine Angebotsnummer angegeben')
+          }),
+          execute: async (params) => {
+            console.log('Accepting offer via chat with params:', params)
+            try {
+              let offerId: string | null = null
+
+              // If offer number is provided, find offer by number
+              if (params.offerNumber) {
+                const response = await fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3010'}/api/offers?offerNumber=${encodeURIComponent(params.offerNumber)}`)
+
+                if (response.ok) {
+                  const offers = await response.json()
+                  if (offers.length > 0) {
+                    offerId = offers[0].id
+                  } else {
+                    return {
+                      success: false,
+                      error: 'Angebot nicht gefunden',
+                      message: `Angebot ${params.offerNumber} wurde nicht gefunden.`
+                    }
+                  }
+                } else {
+                  return {
+                    success: false,
+                    error: 'Fehler beim Suchen des Angebots',
+                    message: 'Es gab einen Fehler beim Suchen des Angebots.'
+                  }
+                }
+              }
+              // If customer name is provided, find their latest DRAFT or SENT offer
+              else if (params.customerName) {
+                // First try DRAFT offers
+                let response = await fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3010'}/api/offers?status=DRAFT&customerName=${encodeURIComponent(params.customerName)}`)
+                let offers = []
+
+                if (response.ok) {
+                  offers = await response.json()
+                }
+
+                // If no DRAFT offers found, try SENT offers
+                if (offers.length === 0) {
+                  response = await fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3010'}/api/offers?status=SENT&customerName=${encodeURIComponent(params.customerName)}`)
+
+                  if (response.ok) {
+                    offers = await response.json()
+                  }
+                }
+
+                if (offers.length > 0) {
+                  offerId = offers[0].id // Get the latest one (already sorted by createdAt desc)
+                } else {
+                  return {
+                    success: false,
+                    error: 'Kein offenes Angebot gefunden',
+                    message: `Kein offenes Angebot für "${params.customerName}" gefunden.`
+                  }
+                }
+              } else {
+                return {
+                  success: false,
+                  error: 'Fehlende Parameter',
+                  message: 'Bitte gib entweder eine Angebotsnummer oder einen Kundennamen an.'
+                }
+              }
+
+              // Update offer status to ACCEPTED
+              const response = await fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3010'}/api/offers/${offerId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'ACCEPTED' })
+              })
+
+              if (response.ok) {
+                const updatedOffer = await response.json()
+                return {
+                  success: true,
+                  offer: updatedOffer,
+                  message: `✅ Angebot ${updatedOffer.offerNumber} wurde akzeptiert!\n\n🎉 ${updatedOffer.customer.firstName} ${updatedOffer.customer.lastName} ist jetzt ein Kunde (nicht mehr Interessent).`
+                }
+              } else {
+                return {
+                  success: false,
+                  error: 'Fehler beim Akzeptieren des Angebots',
+                  message: 'Es gab einen Fehler beim Akzeptieren des Angebots.'
+                }
+              }
+
+            } catch (error) {
+              console.error('Error accepting offer:', error)
+              return {
+                success: false,
+                error: 'Fehler beim Akzeptieren des Angebots',
+                message: 'Es gab einen Fehler beim Akzeptieren des Angebots.'
+              }
+            }
+          }
         })
       }
     })
