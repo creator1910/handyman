@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/offers/[id]
 export async function GET(
@@ -8,14 +8,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const offer = await prisma.offer.findUnique({
-      where: { id },
-      include: {
-        customer: true
-      }
-    })
+    const { data: offer, error } = await supabase
+      .from('offers')
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .eq('id', id)
+      .single()
 
-    if (!offer) {
+    if (error || !offer) {
       return NextResponse.json(
         { error: 'Offer not found' },
         { status: 404 }
@@ -40,29 +42,33 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { 
-      jobDescription, 
-      measurements, 
-      materialsCost, 
-      laborCost, 
-      totalCost, 
-      status 
+    const {
+      jobDescription,
+      measurements,
+      materialsCost,
+      laborCost,
+      totalCost,
+      status
     } = body
 
-    const offer = await prisma.offer.update({
-      where: { id },
-      data: {
-        jobDescription,
-        measurements,
+    const { data: offer, error } = await supabase
+      .from('offers')
+      .update({
+        jobDescription: jobDescription || null,
+        measurements: measurements || null,
         materialsCost: parseFloat(materialsCost) || 0,
         laborCost: parseFloat(laborCost) || 0,
         totalCost: parseFloat(totalCost) || 0,
         status
-      },
-      include: {
-        customer: true
-      }
-    })
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(offer)
   } catch (error) {

@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/offers
 export async function GET() {
   try {
-    const offers = await prisma.offer.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        customer: true
-      }
-    })
+    const { data: offers, error } = await supabase
+      .from('offers')
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .order('createdAt', { ascending: false })
 
-    return NextResponse.json(offers)
+    if (error) throw error
+
+    return NextResponse.json(offers || [])
   } catch (error) {
     console.error('Error fetching offers:', error)
     return NextResponse.json(
@@ -37,23 +38,31 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Generate offer number
-    const offerCount = await prisma.offer.count()
-    const offerNumber = `ANB-${String(offerCount + 1).padStart(4, '0')}`
+    const { count } = await supabase
+      .from('offers')
+      .select('*', { count: 'exact', head: true })
 
-    const offer = await prisma.offer.create({
-      data: {
+    const offerNumber = `ANB-${String((count || 0) + 1).padStart(4, '0')}`
+
+    const { data: offer, error } = await supabase
+      .from('offers')
+      .insert({
         offerNumber,
         customerId,
-        jobDescription,
-        measurements,
+        jobDescription: jobDescription || null,
+        measurements: measurements || null,
         materialsCost: parseFloat(materialsCost) || 0,
         laborCost: parseFloat(laborCost) || 0,
-        totalCost: parseFloat(totalCost) || 0
-      },
-      include: {
-        customer: true
-      }
-    })
+        totalCost: parseFloat(totalCost) || 0,
+        status: 'DRAFT'
+      })
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(offer, { status: 201 })
   } catch (error) {

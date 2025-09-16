@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // POST /api/appointments
 export async function POST(request: NextRequest) {
@@ -7,17 +7,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { customerId, date, notes, photos } = body
 
-    const appointment = await prisma.appointment.create({
-      data: {
+    const { data: appointment, error } = await supabase
+      .from('appointments')
+      .insert({
         customerId,
-        date: new Date(date),
-        notes,
-        photos
-      },
-      include: {
-        customer: true
-      }
-    })
+        date: new Date(date).toISOString(),
+        notes: notes || null,
+        photos: photos || null
+      })
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(appointment, { status: 201 })
   } catch (error) {

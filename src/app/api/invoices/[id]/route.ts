@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // PUT /api/invoices/[id]
 export async function PUT(
@@ -11,14 +11,18 @@ export async function PUT(
     const body = await request.json()
     const { status } = body
 
-    const invoice = await prisma.invoice.update({
-      where: { id },
-      data: { status },
-      include: {
-        customer: true,
-        offer: true
-      }
-    })
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .update({ status })
+      .eq('id', id)
+      .select(`
+        *,
+        customer:customers!customerId (*),
+        offer:offers!offerId (*)
+      `)
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(invoice)
   } catch (error) {

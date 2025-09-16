@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/invoices
 export async function GET() {
   try {
-    const invoices = await prisma.invoice.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        customer: true,
-        offer: true
-      }
-    })
+    const { data: invoices, error } = await supabase
+      .from('invoices')
+      .select(`
+        *,
+        customer:customers!customerId (*),
+        offer:offers!offerId (*)
+      `)
+      .order('createdAt', { ascending: false })
 
-    return NextResponse.json(invoices)
+    if (error) throw error
+
+    return NextResponse.json(invoices || [])
   } catch (error) {
     console.error('Error fetching invoices:', error)
     return NextResponse.json(
@@ -31,12 +32,16 @@ export async function POST(request: NextRequest) {
     const { offerId } = body
 
     // Get the accepted offer
-    const offer = await prisma.offer.findUnique({
-      where: { id: offerId },
-      include: { customer: true }
-    })
+    const { data: offer, error: offerError } = await supabase
+      .from('offers')
+      .select(`
+        *,
+        customer:customers!customerId (*)
+      `)
+      .eq('id', offerId)
+      .single()
 
-    if (!offer) {
+    if (offerError || !offer) {
       return NextResponse.json(
         { error: 'Offer not found' },
         { status: 404 }
@@ -51,9 +56,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if invoice already exists for this offer
-    const existingInvoice = await prisma.invoice.findUnique({
-      where: { offerId }
-    })
+    const { data: existingInvoice } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('offerId', offerId)
+      .single()
 
     if (existingInvoice) {
       return NextResponse.json(
@@ -63,21 +70,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate invoice number
-    const invoiceCount = await prisma.invoice.count()
-    const invoiceNumber = `RG-${String(invoiceCount + 1).padStart(4, '0')}`
+    const { count } = await supabase
+      .from('invoices')
+      .select('*', { count: 'exact', head: true })
 
-    const invoice = await prisma.invoice.create({
-      data: {
+    const invoiceNumber = `RG-${String((count || 0) + 1).padStart(4, '0')}`
+
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .insert({
         invoiceNumber,
         customerId: offer.customerId,
         offerId: offer.id,
-        totalAmount: offer.totalCost
-      },
-      include: {
-        customer: true,
-        offer: true
-      }
-    })
+        totalAmount: offer.totalCost,
+        status: 'DRAFT'
+      })
+      .select(`
+        *,
+        customer:customers!customerId (*),
+        offer:offers!offerId (*)
+      `)
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(invoice, { status: 201 })
   } catch (error) {
