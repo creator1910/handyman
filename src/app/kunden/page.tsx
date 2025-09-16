@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import { SearchInput } from '@/components/ui/SearchInput'
@@ -24,7 +24,7 @@ interface Customer {
   appointments: any[]
 }
 
-export default function CustomersPage() {
+function CustomersPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -328,5 +328,22 @@ export default function CustomersPage() {
         />
       </Modal>
     </AppShell>
+  )
+}
+
+export default function CustomersPage() {
+  return (
+    <Suspense fallback={
+      <AppShell>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Kunden werden geladen...</p>
+          </div>
+        </div>
+      </AppShell>
+    }>
+      <CustomersPageContent />
+    </Suspense>
   )
 }
