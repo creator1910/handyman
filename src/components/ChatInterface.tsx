@@ -95,33 +95,32 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
             const offersCount = c._count?.offers ?? (c.offers?.[0]?.count ?? 0)
             const invoicesCount = c._count?.invoices ?? (c.invoices?.[0]?.count ?? 0)
 
-            return `**${c.firstName} ${c.lastName}**\n` +
+            return `### ${c.firstName} ${c.lastName}\n` +
             `📧 ${c.email || 'Keine E-Mail'}\n` +
             `📞 ${c.phone || 'Keine Telefonnummer'}\n` +
             `📍 ${c.address || 'Keine Adresse'}\n` +
-            `Status: ${c.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n` +
-            `📊 ${offersCount} Angebote • ${invoicesCount} Rechnungen\n`
-          }).join('\n')}`
+            `📊 Status: ${c.isProspect ? 'Interessent' : 'Kunde'} • ${offersCount} Angebote • ${invoicesCount} Rechnungen\n`
+          }).join('\n---\n\n')}`
           
           quickActions = { type: 'customer_list' }
           
         } else if (toolResult.toolName === 'createCustomer' && toolResult.output.success) {
           const customer = toolResult.output.customer
           assistantContent = `## ✅ Kunde erfolgreich erstellt!\n\n` +
-            `**${customer.firstName} ${customer.lastName}**\n\n` +
-            `📧 ${customer.email || 'Keine E-Mail'}\n` +
-            `📞 ${customer.phone || 'Keine Telefonnummer'}\n` +
-            `📍 ${customer.address || 'Keine Adresse'}\n` +
-            `Status: ${customer.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n\n` +
-            `Der Kunde wurde erfolgreich in der Datenbank gespeichert und kann jetzt für Angebote verwendet werden.`
+            `### ${customer.firstName} ${customer.lastName}\n\n` +
+            `📧 E-Mail: ${customer.email || 'Nicht angegeben'}\n` +
+            `📞 Telefon: ${customer.phone || 'Nicht angegeben'}\n` +
+            `📍 Adresse: ${customer.address || 'Nicht angegeben'}\n` +
+            `📊 Status: ${customer.isProspect ? 'Interessent' : 'Kunde'}\n\n` +
+            `Der Kunde wurde erfolgreich gespeichert und kann jetzt für Angebote verwendet werden.`
             
         } else if (toolResult.toolName === 'createOffer' && toolResult.output.success) {
           const offer = toolResult.output.offer
           assistantContent = `## ✅ Angebot erfolgreich erstellt!\n\n` +
-            `**${offer.offerNumber}** für **${offer.customer.firstName} ${offer.customer.lastName}**\n\n` +
-            `📋 ${offer.jobDescription || 'Keine Beschreibung'}\n` +
-            `📏 ${offer.measurements || 'Keine Maße angegeben'}\n\n` +
-            `💰 **Kostenaufstellung:**\n` +
+            `**Angebot ${offer.offerNumber}** für ${offer.customer.firstName} ${offer.customer.lastName}\n\n` +
+            `📋 Beschreibung: ${offer.jobDescription || 'Nicht angegeben'}\n` +
+            `📏 Maße: ${offer.measurements || 'Nicht angegeben'}\n\n` +
+            `### 💰 Kostenaufstellung\n` +
             `• Materialkosten: ${offer.materialsCost}€\n` +
             `• Arbeitskosten: ${offer.laborCost}€\n` +
             `• **Gesamtkosten: ${offer.totalCost}€**\n\n` +
@@ -135,19 +134,19 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
 
           if (customers.length === 1) {
             assistantContent = `## 🔍 Kunde gefunden!\n\n` +
-              `**${bestMatch.firstName} ${bestMatch.lastName}**\n` +
-              `📧 ${bestMatch.email || 'Keine E-Mail'}\n` +
-              `📞 ${bestMatch.phone || 'Keine Telefonnummer'}\n` +
-              `📍 ${bestMatch.address || 'Keine Adresse'}\n` +
-              `Status: ${bestMatch.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n\n` +
+              `### ${bestMatch.firstName} ${bestMatch.lastName}\n\n` +
+              `📧 E-Mail: ${bestMatch.email || 'Nicht angegeben'}\n` +
+              `📞 Telefon: ${bestMatch.phone || 'Nicht angegeben'}\n` +
+              `📍 Adresse: ${bestMatch.address || 'Nicht angegeben'}\n` +
+              `📊 Status: ${bestMatch.isProspect ? 'Interessent' : 'Kunde'}\n\n` +
               `Ist das der richtige Kunde?`
           } else {
             assistantContent = `## 🔍 Mehrere Kunden gefunden!\n\n` +
               `Ich habe ${customers.length} Kunden gefunden:\n\n` +
               customers.map((c: any, index: number) =>
-                `${index + 1}. **${c.firstName} ${c.lastName}**\n` +
-                `   📧 ${c.email || 'Keine E-Mail'}\n` +
-                `   Status: ${c.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n`
+                `**${index + 1}. ${c.firstName} ${c.lastName}**\n` +
+                `📧 ${c.email || 'Nicht angegeben'}\n` +
+                `📊 Status: ${c.isProspect ? 'Interessent' : 'Kunde'}\n`
               ).join('\n') +
               `\nWelcher Kunde ist gemeint?`
           }
@@ -159,21 +158,21 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           const appointmentsCount = customer.appointments?.length || 0
 
           assistantContent = `## 👤 Kundendetails\n\n` +
-            `**${customer.firstName} ${customer.lastName}**\n\n` +
-            `📧 **E-Mail:** ${customer.email || 'Nicht angegeben'}\n` +
-            `📞 **Telefon:** ${customer.phone || 'Nicht angegeben'}\n` +
-            `📍 **Adresse:** ${customer.address || 'Nicht angegeben'}\n` +
-            `📊 **Status:** ${customer.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n` +
-            `📅 **Erstellt:** ${new Date(customer.createdAt).toLocaleDateString('de-DE')}\n\n` +
-            `**Übersicht:**\n` +
+            `### ${customer.firstName} ${customer.lastName}\n\n` +
+            `📧 E-Mail: ${customer.email || 'Nicht angegeben'}\n` +
+            `📞 Telefon: ${customer.phone || 'Nicht angegeben'}\n` +
+            `📍 Adresse: ${customer.address || 'Nicht angegeben'}\n` +
+            `📊 Status: ${customer.isProspect ? 'Interessent' : 'Kunde'}\n` +
+            `📅 Erstellt: ${new Date(customer.createdAt).toLocaleDateString('de-DE')}\n\n` +
+            `### 📊 Übersicht\n` +
             `• ${offersCount} Angebote\n` +
             `• ${invoicesCount} Rechnungen\n` +
             `• ${appointmentsCount} Termine\n`
 
           if (offersCount > 0) {
-            assistantContent += `\n**Letzte Angebote:**\n` +
+            assistantContent += `\n### 📋 Letzte Angebote\n` +
               customer.offers.slice(0, 3).map((offer: any) =>
-                `• ${offer.offerNumber} - ${offer.totalCost}€ (${offer.status})\n`
+                `• **${offer.offerNumber}** - ${offer.totalCost}€ (${offer.status})\n`
               ).join('')
           }
         }
