@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/customers
 export async function GET() {
   try {
-    const customers = await prisma.customer.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        offers: true,
-        invoices: true,
-        appointments: true
-      }
-    })
+    const { data: customers, error } = await supabase
+      .from('customers')
+      .select(`
+        *,
+        offers(*),
+        invoices(*),
+        appointments(*)
+      `)
+      .order('createdAt', { ascending: false })
 
-    return NextResponse.json(customers)
+    if (error) throw error
+
+    return NextResponse.json(customers || [])
   } catch (error) {
     console.error('Error fetching customers:', error)
     return NextResponse.json(
@@ -31,16 +32,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { firstName, lastName, email, phone, address, isProspect } = body
 
-    const customer = await prisma.customer.create({
-      data: {
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .insert({
         firstName,
         lastName,
-        email,
-        phone,
-        address,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
         isProspect: isProspect ?? true
-      }
-    })
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(customer, { status: 201 })
   } catch (error) {

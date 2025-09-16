@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/customers/[id]
 export async function GET(
@@ -8,22 +8,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const customer = await prisma.customer.findUnique({
-      where: { id },
-      include: {
-        offers: {
-          orderBy: { createdAt: 'desc' }
-        },
-        invoices: {
-          orderBy: { createdAt: 'desc' }
-        },
-        appointments: {
-          orderBy: { date: 'desc' }
-        }
-      }
-    })
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .select(`
+        *,
+        offers(*, customer:customers(firstName, lastName)),
+        invoices(*),
+        appointments(*)
+      `)
+      .eq('id', id)
+      .single()
 
-    if (!customer) {
+    if (error || !customer) {
       return NextResponse.json(
         { error: 'Customer not found' },
         { status: 404 }
@@ -50,17 +46,21 @@ export async function PUT(
     const body = await request.json()
     const { firstName, lastName, email, phone, address, isProspect } = body
 
-    const customer = await prisma.customer.update({
-      where: { id },
-      data: {
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .update({
         firstName,
         lastName,
-        email,
-        phone,
-        address,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
         isProspect
-      }
-    })
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json(customer)
   } catch (error) {
@@ -79,9 +79,12 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    await prisma.customer.delete({
-      where: { id }
-    })
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
 
     return NextResponse.json({ success: true })
   } catch (error) {
