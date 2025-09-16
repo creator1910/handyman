@@ -8,8 +8,10 @@ interface MarkdownTextProps {
 /**
  * Simple markdown renderer for chat messages that handles:
  * - **bold text**
+ * - ## H2 and ### H3 headings
+ * - Horizontal rules (---)
  * - Line breaks and paragraphs
- * - Numbered and bulleted lists
+ * - Numbered and bulleted lists (-, *, •)
  * - Code formatting
  */
 export default function MarkdownText({ children, className = '' }: MarkdownTextProps) {
@@ -68,8 +70,8 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         return
       }
 
-      // Handle bulleted lists
-      const bulletMatch = trimmedLine.match(/^[-*]\s*(.+)$/)
+      // Handle bulleted lists (supports -, *, •)
+      const bulletMatch = trimmedLine.match(/^[-*•]\s*(.+)$/)
       if (bulletMatch) {
         flushParagraph(index)
         if (listType !== 'ul') {
@@ -80,15 +82,38 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         return
       }
 
-      // Handle headings (simple ## format)
-      const headingMatch = trimmedLine.match(/^##\s*(.+)$/)
-      if (headingMatch) {
+      // Handle h2 headings (## format)
+      const h2Match = trimmedLine.match(/^##\s*(.+)$/)
+      if (h2Match) {
         flushParagraph(index)
         flushList(index)
         elements.push(
-          <h3 key={`h-${index}`} className="font-semibold text-gray-900 mb-2 mt-4 first:mt-0">
-            {renderInlineMarkdown(headingMatch[1])}
+          <h2 key={`h2-${index}`} className="text-lg font-semibold text-gray-900 mb-3 mt-5 first:mt-0">
+            {renderInlineMarkdown(h2Match[1])}
+          </h2>
+        )
+        return
+      }
+
+      // Handle h3 headings (### format)
+      const h3Match = trimmedLine.match(/^###\s*(.+)$/)
+      if (h3Match) {
+        flushParagraph(index)
+        flushList(index)
+        elements.push(
+          <h3 key={`h3-${index}`} className="text-base font-semibold text-gray-900 mb-2 mt-4 first:mt-0">
+            {renderInlineMarkdown(h3Match[1])}
           </h3>
+        )
+        return
+      }
+
+      // Handle horizontal rules (---)
+      if (trimmedLine === '---') {
+        flushParagraph(index)
+        flushList(index)
+        elements.push(
+          <hr key={`hr-${index}`} className="border-gray-300 my-4" />
         )
         return
       }
