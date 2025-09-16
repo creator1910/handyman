@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
 // GET /api/invoices/[id]/pdf
@@ -9,15 +9,29 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-      include: {
-        customer: true,
-        offer: true
-      }
-    })
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .select(`
+        *,
+        customer:customers!customerId (
+          firstName,
+          lastName,
+          email,
+          phone,
+          address
+        ),
+        offer:offers!offerId (
+          offerNumber,
+          jobDescription,
+          materialsCost,
+          laborCost,
+          totalCost
+        )
+      `)
+      .eq('id', id)
+      .single()
 
-    if (!invoice) {
+    if (error || !invoice) {
       return NextResponse.json(
         { error: 'Invoice not found' },
         { status: 404 }

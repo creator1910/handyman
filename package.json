@@ -4,14 +4,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "prisma generate",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "lint": "next lint"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +15,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
     "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/client": "^6.16.1",
     "@supabase/supabase-js": "^2.57.4",
     "ai": "^5.0.44",
     "clsx": "^2.1.1",
@@ -28,7 +22,6 @@
     "mcp-handler": "^1.0.2",
     "next": "^15.5.3",
     "pdf-lib": "^1.17.1",
-    "prisma": "^6.16.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1",
