@@ -100,10 +100,55 @@ export async function POST(req: NextRequest) {
           }
         }),
         
-        createOffer: tool({
-          description: 'Erstellt ein neues Angebot für einen Kunden. Verwende diese Funktion wenn der User ein Angebot erstellen möchte. Du musst zuerst mit getCustomers die Kunden-ID finden. Beispiel: "Erstelle ein Angebot für Max Mustermann für Fassadenanstrich 50m² à 30€"',
+        findCustomer: tool({
+          description: 'Findet einen Kunden anhand des Namens. Verwende diese Funktion wenn der User einen bestimmten Kunden erwähnt. Beispiele: "Erstelle ein Angebot für Max Mustermann", "Zeige Details von Maria Schmidt"',
           inputSchema: z.object({
-            customerId: z.string().cuid('Ungültige Kunden-ID'),
+            customerName: z.string().describe('Name des Kunden (Vor- und/oder Nachname)')
+          }),
+          execute: async (params) => {
+            console.log('Finding customer via MCP with params:', params)
+            try {
+              const result = await mcpClient.findCustomerByName(params.customerName)
+              console.log('MCP findCustomer result:', result)
+              return result
+            } catch (error) {
+              console.error('MCP findCustomer error:', error)
+              return {
+                success: false,
+                error: 'Fehler bei der Kundensuche über MCP',
+                message: 'Es gab einen Fehler bei der Suche nach dem Kunden.'
+              }
+            }
+          }
+        }),
+
+        getCustomerDetails: tool({
+          description: 'Lädt alle Details eines Kunden inklusive Angebote, Rechnungen und Termine. Verwende dies für detaillierte Kundenabfragen.',
+          inputSchema: z.object({
+            customerId: z.string().describe('Die ID des Kunden')
+          }),
+          execute: async (params) => {
+            console.log('Getting customer details via MCP with params:', params)
+            try {
+              const result = await mcpClient.getCustomerDetails(params.customerId)
+              console.log('MCP getCustomerDetails result:', result)
+              return result
+            } catch (error) {
+              console.error('MCP getCustomerDetails error:', error)
+              return {
+                success: false,
+                error: 'Fehler beim Laden der Kundendetails über MCP',
+                message: 'Es gab einen Fehler beim Laden der Kundendetails.'
+              }
+            }
+          }
+        }),
+
+        createOffer: tool({
+          description: 'Erstellt ein neues Angebot für einen Kunden. WICHTIG: Verwende zuerst findCustomer um den richtigen Kunden zu finden und bestätigen zu lassen. Beispiel: "Erstelle ein Angebot für Max Mustermann für Fassadenanstrich 50m² à 30€"',
+          inputSchema: z.object({
+            customerId: z.string().describe('Die ID des Kunden (von findCustomer erhalten)'),
+            customerName: z.string().describe('Name des Kunden für Bestätigung'),
             jobDescription: z.string().optional(),
             measurements: z.string().optional(),
             materialsCost: z.number().min(0).default(0),

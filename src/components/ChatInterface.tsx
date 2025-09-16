@@ -126,8 +126,56 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
             `• Arbeitskosten: ${offer.laborCost}€\n` +
             `• **Gesamtkosten: ${offer.totalCost}€**\n\n` +
             `Das Angebot wurde erstellt und kann jetzt versendet werden.`
-            
+
           quickActions = { type: 'offer_list' }
+
+        } else if (toolResult.toolName === 'findCustomer' && toolResult.output.success) {
+          const customers = toolResult.output.customers
+          const bestMatch = toolResult.output.bestMatch
+
+          if (customers.length === 1) {
+            assistantContent = `## 🔍 Kunde gefunden!\n\n` +
+              `**${bestMatch.firstName} ${bestMatch.lastName}**\n` +
+              `📧 ${bestMatch.email || 'Keine E-Mail'}\n` +
+              `📞 ${bestMatch.phone || 'Keine Telefonnummer'}\n` +
+              `📍 ${bestMatch.address || 'Keine Adresse'}\n` +
+              `Status: ${bestMatch.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n\n` +
+              `Ist das der richtige Kunde?`
+          } else {
+            assistantContent = `## 🔍 Mehrere Kunden gefunden!\n\n` +
+              `Ich habe ${customers.length} Kunden gefunden:\n\n` +
+              customers.map((c: any, index: number) =>
+                `${index + 1}. **${c.firstName} ${c.lastName}**\n` +
+                `   📧 ${c.email || 'Keine E-Mail'}\n` +
+                `   Status: ${c.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n`
+              ).join('\n') +
+              `\nWelcher Kunde ist gemeint?`
+          }
+
+        } else if (toolResult.toolName === 'getCustomerDetails' && toolResult.output.success) {
+          const customer = toolResult.output.customer
+          const offersCount = customer.offers?.length || 0
+          const invoicesCount = customer.invoices?.length || 0
+          const appointmentsCount = customer.appointments?.length || 0
+
+          assistantContent = `## 👤 Kundendetails\n\n` +
+            `**${customer.firstName} ${customer.lastName}**\n\n` +
+            `📧 **E-Mail:** ${customer.email || 'Nicht angegeben'}\n` +
+            `📞 **Telefon:** ${customer.phone || 'Nicht angegeben'}\n` +
+            `📍 **Adresse:** ${customer.address || 'Nicht angegeben'}\n` +
+            `📊 **Status:** ${customer.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n` +
+            `📅 **Erstellt:** ${new Date(customer.createdAt).toLocaleDateString('de-DE')}\n\n` +
+            `**Übersicht:**\n` +
+            `• ${offersCount} Angebote\n` +
+            `• ${invoicesCount} Rechnungen\n` +
+            `• ${appointmentsCount} Termine\n`
+
+          if (offersCount > 0) {
+            assistantContent += `\n**Letzte Angebote:**\n` +
+              customer.offers.slice(0, 3).map((offer: any) =>
+                `• ${offer.offerNumber} - ${offer.totalCost}€ (${offer.status})\n`
+              ).join('')
+          }
         }
       }
 

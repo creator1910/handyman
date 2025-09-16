@@ -112,9 +112,23 @@ export class MCPClient {
             .order('createdAt', { ascending: false });
 
           if (arguments_.search) {
-            query = query.or(
-              `firstName.ilike.%${arguments_.search}%,lastName.ilike.%${arguments_.search}%,email.ilike.%${arguments_.search}%`
-            );
+            // Split search into words for better matching
+            const searchWords = arguments_.search.split(' ').filter(word => word.trim());
+
+            if (searchWords.length === 1) {
+              // Single word search - check each field
+              query = query.or(
+                `firstName.ilike.%${arguments_.search}%,lastName.ilike.%${arguments_.search}%,email.ilike.%${arguments_.search}%`
+              );
+            } else {
+              // Multi-word search - check if words match firstName and lastName
+              const firstWord = searchWords[0];
+              const lastWord = searchWords[searchWords.length - 1];
+              query = query.or(
+                `firstName.ilike.%${firstWord}%,lastName.ilike.%${lastWord}%,` +
+                `firstName.ilike.%${arguments_.search}%,lastName.ilike.%${arguments_.search}%,email.ilike.%${arguments_.search}%`
+              );
+            }
           }
 
           const { data: customers, error } = await query;
@@ -253,6 +267,114 @@ export class MCPClient {
           };
         }
 
+      case 'find_customer_by_name':
+        try {
+          const searchTerm = arguments_.customerName;
+          let query = supabase
+            .from('customers')
+            .select('*')
+            .order('createdAt', { ascending: false });
+
+          // Split search into words for better matching
+          const searchWords = searchTerm.split(' ').filter(word => word.trim());
+
+          if (searchWords.length === 1) {
+            // Single word search - check each field
+            query = query.or(
+              `firstName.ilike.%${searchTerm}%,lastName.ilike.%${searchTerm}%`
+            );
+          } else {
+            // Multi-word search - check if words match firstName and lastName
+            const firstWord = searchWords[0];
+            const lastWord = searchWords[searchWords.length - 1];
+            query = query.or(
+              `firstName.ilike.%${firstWord}%,lastName.ilike.%${lastWord}%,` +
+              `firstName.ilike.%${searchTerm}%,lastName.ilike.%${searchTerm}%`
+            );
+          }
+
+          const { data: customers, error } = await query;
+
+          if (error) throw error;
+
+          if (!customers || customers.length === 0) {
+            return {
+              success: false,
+              error: 'Kunde nicht gefunden',
+              message: `Kein Kunde mit dem Namen "${searchTerm}" gefunden.`
+            };
+          }
+
+          // Calculate similarity scores for better matching
+          const scoredCustomers = customers.map(customer => {
+            const fullName = `${customer.firstName} ${customer.lastName}`.toLowerCase();
+            const searchLower = searchTerm.toLowerCase();
+
+            // Simple scoring: exact match > contains > fuzzy match
+            let score = 0;
+            if (fullName === searchLower) score = 100;
+            else if (fullName.includes(searchLower)) score = 80;
+            else if (searchLower.includes(customer.firstName.toLowerCase()) ||
+                     searchLower.includes(customer.lastName.toLowerCase())) score = 60;
+            else score = 30;
+
+            return { ...customer, matchScore: score };
+          });
+
+          // Sort by score and take top matches
+          const sortedCustomers = scoredCustomers
+            .sort((a, b) => b.matchScore - a.matchScore)
+            .slice(0, 5);
+
+          return {
+            success: true,
+            customers: sortedCustomers,
+            bestMatch: sortedCustomers[0],
+            count: sortedCustomers.length,
+            message: `${sortedCustomers.length} Kunden für "${searchTerm}" gefunden.`
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: 'Fehler bei der Kundensuche',
+            message: error.message
+          };
+        }
+
+      case 'get_customer_details':
+        try {
+          const { data: customer, error } = await supabase
+            .from('customers')
+            .select(`
+              *,
+              offers(*),
+              invoices(*),
+              appointments(*)
+            `)
+            .eq('id', arguments_.customerId)
+            .single();
+
+          if (error || !customer) {
+            return {
+              success: false,
+              error: 'Kunde nicht gefunden',
+              message: 'Der angegebene Kunde wurde nicht gefunden.'
+            };
+          }
+
+          return {
+            success: true,
+            customer,
+            message: `Details für ${customer.firstName} ${customer.lastName} geladen.`
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: 'Fehler beim Laden der Kundendetails',
+            message: error.message
+          };
+        }
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -298,6 +420,14 @@ export class MCPClient {
 
   async getOffers(customerId?: string) {
     return this.callTool('get_offers', { customerId });
+  }
+
+  async findCustomerByName(customerName: string) {
+    return this.callTool('find_customer_by_name', { customerName });
+  }
+
+  async getCustomerDetails(customerId: string) {
+    return this.callTool('get_customer_details', { customerId });
   }
 }
 
