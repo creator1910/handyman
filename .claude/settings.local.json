@@ -38,7 +38,8 @@
       "WebSearch",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(cat:*)",
-      "WebFetch(domain:handyman-9tbugt7a9-oles-projects-c470c74e.vercel.app)"
+      "WebFetch(domain:handyman-9tbugt7a9-oles-projects-c470c74e.vercel.app)",
+      "WebFetch(domain:handyman-virid.vercel.app)"
     ],
     "deny": []
   }

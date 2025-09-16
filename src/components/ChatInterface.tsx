@@ -90,14 +90,18 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
         const toolResult = result.toolResults[0]
         if (toolResult.toolName === 'getCustomers' && toolResult.output.success) {
           const customers = toolResult.output.customers
-          assistantContent = `## 👥 Deine Kunden (${customers.length})\n\n${customers.map((c: any) => 
-            `**${c.firstName} ${c.lastName}**\n` +
+          assistantContent = `## 👥 Deine Kunden (${customers.length})\n\n${customers.map((c: any) => {
+            // Handle both Prisma (_count) and Supabase (array with count) formats
+            const offersCount = c._count?.offers ?? (c.offers?.[0]?.count ?? 0)
+            const invoicesCount = c._count?.invoices ?? (c.invoices?.[0]?.count ?? 0)
+
+            return `**${c.firstName} ${c.lastName}**\n` +
             `📧 ${c.email || 'Keine E-Mail'}\n` +
             `📞 ${c.phone || 'Keine Telefonnummer'}\n` +
             `📍 ${c.address || 'Keine Adresse'}\n` +
             `Status: ${c.isProspect ? '🔍 Interessent' : '✅ Kunde'}\n` +
-            `📊 ${c._count.offers} Angebote • ${c._count.invoices} Rechnungen\n`
-          ).join('\n')}`
+            `📊 ${offersCount} Angebote • ${invoicesCount} Rechnungen\n`
+          }).join('\n')}`
           
           quickActions = { type: 'customer_list' }
           
