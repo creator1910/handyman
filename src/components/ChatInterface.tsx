@@ -1,10 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import ChatBubble from '@/components/ChatBubble'
 import QuickActions from '@/components/QuickActions'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { CreateCustomerForm } from '@/components/CreateCustomerForm'
+import { CreateOfferForm } from '@/components/CreateOfferForm'
 
 interface ChatInterfaceProps {
   onProspectSuggestion?: (data: any) => void
@@ -29,16 +33,27 @@ interface Message {
 }
 
 export default function ChatInterface({ onProspectSuggestion }: ChatInterfaceProps) {
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hi! Ich bin dein Handwerker-Assistent 🔨\n\nErzähl mir von deinen Kunden oder Aufträgen - ich helfe dir bei der Verwaltung!\n\n**Was ich für dich tun kann:**\n• Kunden verwalten und erstellen\n• Angebote kalkulieren und erstellen\n• Kundendaten durchsuchen\n• Aufträge organisieren'
+      content: 'Hi! Ich bin dein craft.ai Handwerker-Assistent.\n\nErzähl mir von deinen Kunden oder Aufträgen - ich helfe dir bei der Verwaltung!\n\n**Was ich für dich tun kann:**\n• Kunden verwalten und erstellen\n• Angebote kalkulieren und erstellen\n• Kundendaten durchsuchen\n• Aufträge organisieren'
     }
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Modal states
+  const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false)
+  const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
+  const [isCreatingOffer, setIsCreatingOffer] = useState(false)
+
+  // Data for pre-filled forms
+  const [suggestedCustomerData, setSuggestedCustomerData] = useState<any>(null)
+  const [suggestedOfferData, setSuggestedOfferData] = useState<any>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -90,41 +105,47 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
         const toolResult = result.toolResults[0]
         if (toolResult.toolName === 'getCustomers' && toolResult.output.success) {
           const customers = toolResult.output.customers
-          assistantContent = `## 👥 Deine Kunden (${customers.length})\n\n${customers.map((c: any) => {
+
+          // Create table format for customers
+          const tableHeader = '| Name | Kontakt | Adresse | Status | Angebote | Rechnungen |\n|------|---------|---------|--------|----------|------------|'
+          const tableRows = customers.map((c: any) => {
             // Handle both Prisma (_count) and Supabase (array with count) formats
             const offersCount = c._count?.offers ?? (c.offers?.[0]?.count ?? 0)
             const invoicesCount = c._count?.invoices ?? (c.invoices?.[0]?.count ?? 0)
+            const contact = [c.email, c.phone].filter(Boolean).join(' • ') || 'Keine Kontaktdaten'
+            const address = c.address || 'Keine Adresse'
+            const status = c.isProspect ? 'Interessent' : 'Kunde'
 
-            return `### ${c.firstName} ${c.lastName}\n` +
-            `📧 ${c.email || 'Keine E-Mail'}\n` +
-            `📞 ${c.phone || 'Keine Telefonnummer'}\n` +
-            `📍 ${c.address || 'Keine Adresse'}\n` +
-            `📊 Status: ${c.isProspect ? 'Interessent' : 'Kunde'} • ${offersCount} Angebote • ${invoicesCount} Rechnungen\n`
-          }).join('\n---\n\n')}`
+            return `| **${c.firstName} ${c.lastName}** | ${contact} | ${address} | ${status} | ${offersCount} | ${invoicesCount} |`
+          }).join('\n')
+
+          assistantContent = `## Deine Kunden (${customers.length})\n\n${tableHeader}\n${tableRows}`
           
           quickActions = { type: 'customer_list' }
           
         } else if (toolResult.toolName === 'createCustomer' && toolResult.output.success) {
           const customer = toolResult.output.customer
-          assistantContent = `## ✅ Kunde erfolgreich erstellt!\n\n` +
-            `### ${customer.firstName} ${customer.lastName}\n\n` +
-            `📧 E-Mail: ${customer.email || 'Nicht angegeben'}\n` +
-            `📞 Telefon: ${customer.phone || 'Nicht angegeben'}\n` +
-            `📍 Adresse: ${customer.address || 'Nicht angegeben'}\n` +
-            `📊 Status: ${customer.isProspect ? 'Interessent' : 'Kunde'}\n\n` +
-            `Der Kunde wurde erfolgreich gespeichert und kann jetzt für Angebote verwendet werden.`
+          assistantContent = `## Kunde erfolgreich erstellt\n\n` +
+            `**${customer.firstName} ${customer.lastName}** wurde als ${customer.isProspect ? 'Interessent' : 'Kunde'} angelegt.\n\n` +
+            `### Kontaktdaten\n` +
+            `| Feld | Wert |\n|------|------|\n` +
+            `| E-Mail | ${customer.email || 'Nicht angegeben'} |\n` +
+            `| Telefon | ${customer.phone || 'Nicht angegeben'} |\n` +
+            `| Adresse | ${customer.address || 'Nicht angegeben'} |\n` +
+            `| Status | ${customer.isProspect ? 'Interessent' : 'Kunde'} |\n\n` +
+            `Der Kunde kann jetzt für Angebote und Rechnungen verwendet werden.`
             
         } else if (toolResult.toolName === 'createOffer' && toolResult.output.success) {
           const offer = toolResult.output.offer
-          assistantContent = `## ✅ Angebot erfolgreich erstellt!\n\n` +
+          assistantContent = `## Angebot erfolgreich erstellt\n\n` +
             `**Angebot ${offer.offerNumber}** für ${offer.customer.firstName} ${offer.customer.lastName}\n\n` +
-            `📋 Beschreibung: ${offer.jobDescription || 'Nicht angegeben'}\n` +
-            `📏 Maße: ${offer.measurements || 'Nicht angegeben'}\n\n` +
-            `### 💰 Kostenaufstellung\n` +
-            `• Materialkosten: ${offer.materialsCost}€\n` +
-            `• Arbeitskosten: ${offer.laborCost}€\n` +
-            `• **Gesamtkosten: ${offer.totalCost}€**\n\n` +
-            `Das Angebot wurde erstellt und kann jetzt versendet werden.`
+            `### Kostenaufstellung\n` +
+            `| Position | Betrag |\n|----------|--------|\n` +
+            `| Materialkosten | ${offer.materialsCost}€ |\n` +
+            `| Arbeitskosten | ${offer.laborCost}€ |\n` +
+            `| **Gesamtkosten** | **${offer.totalCost}€** |\n\n` +
+            `${offer.jobDescription ? `**Beschreibung:** ${offer.jobDescription}\n\n` : ''}` +
+            `Das Angebot ist bereit zum Versenden.`
 
           quickActions = { type: 'offer_list' }
 
@@ -133,22 +154,26 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           const bestMatch = toolResult.output.bestMatch
 
           if (customers.length === 1) {
-            assistantContent = `## 🔍 Kunde gefunden!\n\n` +
+            assistantContent = `## Kunde gefunden\n\n` +
               `### ${bestMatch.firstName} ${bestMatch.lastName}\n\n` +
-              `📧 E-Mail: ${bestMatch.email || 'Nicht angegeben'}\n` +
-              `📞 Telefon: ${bestMatch.phone || 'Nicht angegeben'}\n` +
-              `📍 Adresse: ${bestMatch.address || 'Nicht angegeben'}\n` +
-              `📊 Status: ${bestMatch.isProspect ? 'Interessent' : 'Kunde'}\n\n` +
+              `| Feld | Wert |\n|------|------|\n` +
+              `| E-Mail | ${bestMatch.email || 'Nicht angegeben'} |\n` +
+              `| Telefon | ${bestMatch.phone || 'Nicht angegeben'} |\n` +
+              `| Adresse | ${bestMatch.address || 'Nicht angegeben'} |\n` +
+              `| Status | ${bestMatch.isProspect ? 'Interessent' : 'Kunde'} |\n\n` +
               `Ist das der richtige Kunde?`
           } else {
-            assistantContent = `## 🔍 Mehrere Kunden gefunden!\n\n` +
-              `Ich habe ${customers.length} Kunden gefunden:\n\n` +
-              customers.map((c: any, index: number) =>
-                `**${index + 1}. ${c.firstName} ${c.lastName}**\n` +
-                `📧 ${c.email || 'Nicht angegeben'}\n` +
-                `📊 Status: ${c.isProspect ? 'Interessent' : 'Kunde'}\n`
-              ).join('\n') +
-              `\nWelcher Kunde ist gemeint?`
+            const tableHeader = '| # | Name | Kontakt | Status |\n|---|------|---------|--------|'
+            const tableRows = customers.map((c: any, index: number) => {
+              const contact = [c.email, c.phone].filter(Boolean).join(' • ') || 'Keine Kontaktdaten'
+              const status = c.isProspect ? 'Interessent' : 'Kunde'
+              return `| ${index + 1} | **${c.firstName} ${c.lastName}** | ${contact} | ${status} |`
+            }).join('\n')
+
+            assistantContent = `## Mehrere Kunden gefunden\n\n` +
+              `Ich habe ${customers.length} passende Kunden gefunden:\n\n` +
+              `${tableHeader}\n${tableRows}\n\n` +
+              `Welcher Kunde ist gemeint?`
           }
 
         } else if (toolResult.toolName === 'getCustomerDetails' && toolResult.output.success) {
@@ -157,23 +182,26 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           const invoicesCount = customer.invoices?.length || 0
           const appointmentsCount = customer.appointments?.length || 0
 
-          assistantContent = `## 👤 Kundendetails\n\n` +
+          assistantContent = `## Kundendetails\n\n` +
             `### ${customer.firstName} ${customer.lastName}\n\n` +
-            `📧 E-Mail: ${customer.email || 'Nicht angegeben'}\n` +
-            `📞 Telefon: ${customer.phone || 'Nicht angegeben'}\n` +
-            `📍 Adresse: ${customer.address || 'Nicht angegeben'}\n` +
-            `📊 Status: ${customer.isProspect ? 'Interessent' : 'Kunde'}\n` +
-            `📅 Erstellt: ${new Date(customer.createdAt).toLocaleDateString('de-DE')}\n\n` +
-            `### 📊 Übersicht\n` +
-            `• ${offersCount} Angebote\n` +
-            `• ${invoicesCount} Rechnungen\n` +
-            `• ${appointmentsCount} Termine\n`
+            `| Feld | Wert |\n|------|------|\n` +
+            `| E-Mail | ${customer.email || 'Nicht angegeben'} |\n` +
+            `| Telefon | ${customer.phone || 'Nicht angegeben'} |\n` +
+            `| Adresse | ${customer.address || 'Nicht angegeben'} |\n` +
+            `| Status | ${customer.isProspect ? 'Interessent' : 'Kunde'} |\n` +
+            `| Erstellt | ${new Date(customer.createdAt).toLocaleDateString('de-DE')} |\n\n` +
+            `### Übersicht\n` +
+            `| Kategorie | Anzahl |\n|-----------|--------|\n` +
+            `| Angebote | ${offersCount} |\n` +
+            `| Rechnungen | ${invoicesCount} |\n` +
+            `| Termine | ${appointmentsCount} |\n`
 
           if (offersCount > 0) {
-            assistantContent += `\n### 📋 Letzte Angebote\n` +
+            assistantContent += `\n### Letzte Angebote\n` +
+              `| Angebot | Betrag | Status |\n|---------|--------|--------|\n` +
               customer.offers.slice(0, 3).map((offer: any) =>
-                `• **${offer.offerNumber}** - ${offer.totalCost}€ (${offer.status})\n`
-              ).join('')
+                `| ${offer.offerNumber} | ${offer.totalCost}€ | ${offer.status} |`
+              ).join('\n')
           }
         }
       }
@@ -223,38 +251,120 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
     setInput(e.target.value)
   }
 
+  // API call functions
+  const createCustomerViaAPI = async (customerData: any) => {
+    setIsCreatingCustomer(true)
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerData),
+      })
+
+      if (response.ok) {
+        setShowCreateCustomerModal(false)
+        setSuggestedCustomerData(null)
+        // Add success message to chat
+        const successMessage: Message = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `Kunde **${customerData.firstName} ${customerData.lastName}** wurde erfolgreich erstellt!`
+        }
+        setMessages(prev => [...prev, successMessage])
+      } else {
+        console.error('Failed to create customer')
+      }
+    } catch (error) {
+      console.error('Error creating customer:', error)
+    } finally {
+      setIsCreatingCustomer(false)
+    }
+  }
+
+  const createOfferViaChat = async (offerData: any) => {
+    setIsCreatingOffer(true)
+    try {
+      // Send via chat API to use MCP tools
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: `Erstelle ein Angebot für ${offerData.customerName}: ${offerData.jobDescription}, Materialkosten ${offerData.materialsCost}€, Arbeitskosten ${offerData.laborCost}€, Gesamtkosten ${offerData.totalCost}€`
+      }
+
+      setMessages(prev => [...prev, userMessage])
+      setShowCreateOfferModal(false)
+      setSuggestedOfferData(null)
+
+      const response = await fetch('/api/chat-simple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [...messages, userMessage] }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: result.content || 'Angebot wurde erstellt!'
+        }
+        setMessages(prev => [...prev, assistantMessage])
+      }
+    } catch (error) {
+      console.error('Error creating offer:', error)
+    } finally {
+      setIsCreatingOffer(false)
+    }
+  }
+
+
   const handleQuickAction = async (action: string, data?: any) => {
     console.log('Quick action:', action, data)
-    
+
     switch (action) {
       case 'confirm_customer':
         if (data) {
-          setInput(`Erstelle einen neuen Kunden: ${data.firstName} ${data.lastName}${data.email ? `, ${data.email}` : ''}${data.phone ? `, ${data.phone}` : ''}${data.address ? `, ${data.address}` : ''}`)
+          setSuggestedCustomerData(data)
+          setShowCreateCustomerModal(true)
         }
         break
-        
+
+      case 'edit_customer':
+        if (data) {
+          setSuggestedCustomerData(data)
+          setShowCreateCustomerModal(true)
+        }
+        break
+
       case 'add_customer':
-        setInput('Erstelle einen neuen Kunden: ')
+        setSuggestedCustomerData(null)
+        setShowCreateCustomerModal(true)
         break
-        
+
       case 'search_customers':
-        setInput('Suche nach Kunde: ')
+        router.push('/kunden?focus=search')
         break
-        
+
       case 'create_offer':
-        setInput('Erstelle ein Angebot für: ')
+        setSuggestedOfferData(null)
+        setShowCreateOfferModal(true)
         break
-        
+
       case 'confirm_offer':
         if (data) {
-          setInput(`Erstelle ein Angebot für ${data.customerName}: ${data.description}, Materialkosten ${data.materialsCost}€, Arbeitskosten ${data.laborCost}€`)
+          setSuggestedOfferData(data)
+          setShowCreateOfferModal(true)
         }
         break
-        
+
       case 'cancel':
-        // Just clear any pending actions
+        // Clear any pending actions and close modals
+        setSuggestedCustomerData(null)
+        setSuggestedOfferData(null)
+        setShowCreateCustomerModal(false)
+        setShowCreateOfferModal(false)
         break
-        
+
       default:
         console.log('Unhandled quick action:', action)
     }
@@ -268,7 +378,7 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
         {/* Header integrated into messages area */}
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-2">HandyAI Assistant</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">craft.ai Assistant</h1>
             <p className="text-gray-600">Dein KI-Assistent für Handwerker-CRM</p>
           </div>
         </div>
@@ -370,6 +480,49 @@ export default function ChatInterface({ onProspectSuggestion }: ChatInterfacePro
           </form>
         </div>
       </div>
+
+      {/* Create Customer Modal */}
+      <Modal
+        isOpen={showCreateCustomerModal}
+        onClose={() => {
+          setShowCreateCustomerModal(false)
+          setSuggestedCustomerData(null)
+        }}
+        title="Neuen Kunden anlegen"
+        size="md"
+      >
+        <CreateCustomerForm
+          onSubmit={createCustomerViaAPI}
+          onCancel={() => {
+            setShowCreateCustomerModal(false)
+            setSuggestedCustomerData(null)
+          }}
+          isLoading={isCreatingCustomer}
+          prefilledData={suggestedCustomerData}
+        />
+      </Modal>
+
+      {/* Create Offer Modal */}
+      <Modal
+        isOpen={showCreateOfferModal}
+        onClose={() => {
+          setShowCreateOfferModal(false)
+          setSuggestedOfferData(null)
+        }}
+        title="Neues Angebot erstellen"
+        size="lg"
+      >
+        <CreateOfferForm
+          onSubmit={createOfferViaChat}
+          onCancel={() => {
+            setShowCreateOfferModal(false)
+            setSuggestedOfferData(null)
+          }}
+          isLoading={isCreatingOffer}
+          preselectedCustomer={suggestedOfferData?.customer}
+        />
+      </Modal>
+
     </div>
   )
 }

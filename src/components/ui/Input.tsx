@@ -27,11 +27,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           id={inputId}
           type={type}
           className={cn(
-            'flex h-11 w-full rounded-lg border border-border bg-white px-4 py-2 text-[15px]',
-            'placeholder:text-muted',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary',
-            'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-surface',
-            error && 'border-status-declined focus-visible:ring-status-declined/30',
+            'flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-[15px]',
+            'placeholder:text-gray-400',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 focus-visible:border-orange-500',
+            'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50',
+            error && 'border-red-500 focus-visible:ring-red-500/30',
             className
           )}
           ref={ref}
@@ -41,7 +41,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         {(error || helper) && (
           <p className={cn(
             'text-sm',
-            error ? 'text-status-declined' : 'text-muted'
+            error ? 'text-red-600' : 'text-gray-500'
           )}>
             {error || helper}
           </p>

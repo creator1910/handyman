@@ -178,9 +178,9 @@ export default function OffersPage() {
       <AppShell>
         <div className="flex items-center justify-center h-full">
           <div className="animate-pulse space-y-4 w-full max-w-md">
-            <div className="h-4 bg-surface rounded w-3/4"></div>
-            <div className="h-4 bg-surface rounded w-1/2"></div>
-            <div className="h-4 bg-surface rounded w-2/3"></div>
+            <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-100 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-100 rounded w-2/3"></div>
           </div>
         </div>
       </AppShell>
@@ -197,12 +197,12 @@ export default function OffersPage() {
               <h1 className="text-2xl font-bold text-gray-900">Angebote</h1>
               <p className="text-gray-600">Erstellen und verwalten Sie Ihre Angebote</p>
             </div>
-            <button 
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              + Neues Angebot
-            </button>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Neues Angebot
+            </Button>
           </div>
         </div>
 
@@ -210,7 +210,9 @@ export default function OffersPage() {
         <div className="flex-1 overflow-auto">
           {offers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-              <div className="text-6xl mb-4">📋</div>
+              <svg className="w-16 h-16 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
               <div className="text-lg font-medium">Keine Angebote vorhanden</div>
               <div className="text-sm">Erstellen Sie Ihr erstes Angebot</div>
             </div>
@@ -220,7 +222,7 @@ export default function OffersPage() {
                 {offers.map((offer) => (
                   <div
                     key={offer.id}
-                    className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                    className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -234,7 +236,7 @@ export default function OffersPage() {
                             {getStatusText(offer.status)}
                           </span>
                         </div>
-                        
+
                         <p className="text-sm text-gray-600 mt-1">
                           Kunde: {offer.customer.firstName} {offer.customer.lastName}
                         </p>
@@ -246,42 +248,54 @@ export default function OffersPage() {
                         )}
 
                         <div className="mt-4 flex items-center space-x-6 text-sm text-gray-500">
-                          <span>💶 {offer.totalCost.toFixed(2)} €</span>
+                          <span className="flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
+                            {offer.totalCost.toFixed(2)} €
+                          </span>
                           <span>Erstellt: {new Date(offer.createdAt).toLocaleDateString('de-DE')}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-3">
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => downloadPDF(offer.id, offer.offerNumber)}
-                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200"
                         >
-                          📄 PDF
-                        </button>
-                        
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          PDF
+                        </Button>
+
                         {offer.status === 'DRAFT' && (
-                          <button
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => updateOfferStatus(offer.id, 'SENT')}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium hover:bg-blue-200"
                           >
                             Versenden
-                          </button>
+                          </Button>
                         )}
-                        
+
                         {offer.status === 'SENT' && (
                           <>
-                            <button
+                            <Button
+                              variant="success"
+                              size="sm"
                               onClick={() => updateOfferStatus(offer.id, 'ACCEPTED')}
-                              className="px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm font-medium hover:bg-green-200"
                             >
                               Annehmen
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
                               onClick={() => updateOfferStatus(offer.id, 'DECLINED')}
-                              className="px-3 py-1 bg-red-100 text-red-800 rounded-md text-sm font-medium hover:bg-red-200"
                             >
                               Ablehnen
-                            </button>
+                            </Button>
                           </>
                         )}
                       </div>
@@ -296,9 +310,9 @@ export default function OffersPage() {
         {/* Create Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
               <h2 className="text-lg font-semibold mb-4">Neues Angebot erstellen</h2>
-              
+
               <form onSubmit={handleCreateOffer} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -307,7 +321,7 @@ export default function OffersPage() {
                   <select
                     value={formData.customerId}
                     onChange={(e) => setFormData(prev => ({ ...prev, customerId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                     required
                   >
                     <option value="">Kunde auswählen</option>
@@ -326,7 +340,7 @@ export default function OffersPage() {
                   <textarea
                     value={formData.jobDescription}
                     onChange={(e) => setFormData(prev => ({ ...prev, jobDescription: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                     rows={3}
                   />
                 </div>
@@ -341,7 +355,7 @@ export default function OffersPage() {
                       step="0.01"
                       value={formData.materialsCost}
                       onChange={(e) => setFormData(prev => ({ ...prev, materialsCost: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
 
@@ -354,7 +368,7 @@ export default function OffersPage() {
                       step="0.01"
                       value={formData.laborCost}
                       onChange={(e) => setFormData(prev => ({ ...prev, laborCost: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
                 </div>
@@ -368,24 +382,23 @@ export default function OffersPage() {
                     step="0.01"
                     value={formData.totalCost}
                     readOnly
-                    className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl"
                   />
                 </div>
 
                 <div className="flex justify-end space-x-3">
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
                     Erstellen
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>

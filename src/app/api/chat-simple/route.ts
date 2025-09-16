@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         }),
         
         findCustomer: tool({
-          description: 'Findet einen Kunden anhand des Namens. Verwende diese Funktion wenn der User einen bestimmten Kunden erwähnt. Beispiele: "Erstelle ein Angebot für Max Mustermann", "Zeige Details von Maria Schmidt"',
+          description: 'Findet einen Kunden anhand des Namens für allgemeine Abfragen (NICHT für Angebotserstellung). Verwende diese Funktion nur für: "Zeige Details von Maria Schmidt", "Wer ist Max Mustermann". Für Angebotserstellung verwende createOfferWithLookup.',
           inputSchema: z.object({
             customerName: z.string().describe('Name des Kunden (Vor- und/oder Nachname)')
           }),
@@ -116,28 +116,109 @@ export async function POST(req: NextRequest) {
           }
         }),
 
-        createOffer: tool({
-          description: 'Erstellt ein neues Angebot für einen Kunden. WICHTIG: Verwende zuerst findCustomer um den richtigen Kunden zu finden und bestätigen zu lassen. Beispiel: "Erstelle ein Angebot für Max Mustermann für Fassadenanstrich 50m² à 30€"',
+        createOfferWithLookup: tool({
+          description: 'PRIMÄRE Funktion für Angebotserstellung! Erstellt ein neues Angebot für einen Kunden mit automatischer Kundensuche und Bestätigung. Verwende diese Funktion IMMER wenn der User ein Angebot erstellen möchte. Beispiele: "Erstelle ein Angebot für Max Mustermann", "Angebot für Juli Knorr", "Ich möchte ein Angebot für..."',
           inputSchema: z.object({
-            customerId: z.string().describe('Die ID des Kunden (von findCustomer erhalten)'),
-            customerName: z.string().describe('Name des Kunden für Bestätigung'),
-            jobDescription: z.string().optional(),
-            measurements: z.string().optional(),
-            materialsCost: z.number().min(0).default(0),
-            laborCost: z.number().min(0).default(0),
-            totalCost: z.number().min(0).default(0)
+            clientName: z.string().describe('Name des Kunden (Vor- und/oder Nachname)'),
+            jobDescription: z.string().optional().describe('Beschreibung der Arbeit'),
+            measurements: z.string().optional().describe('Maße oder Fläche'),
+            materialsCost: z.number().min(0).default(0).describe('Materialkosten in Euro'),
+            laborCost: z.number().min(0).default(0).describe('Arbeitskosten in Euro')
           }),
           execute: async (params) => {
-            console.log('Creating offer via MCP with params:', params)
+            console.log('Creating offer with client lookup via MCP with params:', params)
             try {
-              const result = await mcpClient.createOffer(params)
-              console.log('MCP createOffer result:', result)
+              const offerDetails = {
+                jobDescription: params.jobDescription,
+                measurements: params.measurements,
+                materialsCost: params.materialsCost,
+                laborCost: params.laborCost
+              }
+
+              const result = await mcpClient.createOfferWithClientLookup(params.clientName, offerDetails)
+              console.log('MCP createOfferWithClientLookup result:', result)
+
+              // If we need client confirmation, format the response appropriately
+              if (result.needsClientConfirmation && result.suggestedClients) {
+                return {
+                  ...result,
+                  message: `Ich habe ${result.suggestedClients.length} Kunden für "${params.clientName}" gefunden. Bitte bestätigen Sie den richtigen Kunden:
+
+${result.suggestedClients.map((customer: any, index: number) =>
+  `${index + 1}. **${customer.firstName} ${customer.lastName}** ${customer.isProspect ? '(Interessent)' : '(Kunde)'}
+   ${[customer.email, customer.phone, customer.address].filter(Boolean).join(' • ')}`
+).join('\n\n')}
+
+Welchen Kunden möchten Sie auswählen?`
+                }
+              }
+
+              // If we need to create a new client
+              if (result.needsClientCreation) {
+                return {
+                  ...result,
+                  message: `Kein Kunde mit dem Namen "${params.clientName}" gefunden. Soll ich einen neuen Kunden anlegen?
+
+**Vorschlag:**
+- Vorname: ${result.suggestedClientData?.firstName || ''}
+- Nachname: ${result.suggestedClientData?.lastName || ''}
+
+Bestätigen Sie die Daten oder korrigieren Sie diese.`
+                }
+              }
+
               return result
             } catch (error) {
-              console.error('MCP createOffer error:', error)
+              console.error('MCP createOfferWithClientLookup error:', error)
               return {
                 success: false,
                 error: 'Fehler beim Erstellen des Angebots über MCP',
+                message: 'Es gab einen Fehler beim Erstellen des Angebots.'
+              }
+            }
+          }
+        }),
+
+        confirmOfferClient: tool({
+          description: 'Bestätigt einen Kunden für die Angebotserstellung und erstellt das Angebot mit PDF. Verwende dies nachdem createOfferWithLookup Kundenoptionen zurückgegeben hat.',
+          inputSchema: z.object({
+            customerId: z.string().describe('Die ID des bestätigten Kunden'),
+            jobDescription: z.string().optional().describe('Beschreibung der Arbeit'),
+            measurements: z.string().optional().describe('Maße oder Fläche'),
+            materialsCost: z.number().min(0).default(0).describe('Materialkosten in Euro'),
+            laborCost: z.number().min(0).default(0).describe('Arbeitskosten in Euro')
+          }),
+          execute: async (params) => {
+            console.log('Confirming offer client via MCP with params:', params)
+            try {
+              const offerDetails = {
+                jobDescription: params.jobDescription,
+                measurements: params.measurements,
+                materialsCost: params.materialsCost,
+                laborCost: params.laborCost
+              }
+
+              const result = await mcpClient.createOfferWithConfirmedClient(params.customerId, offerDetails)
+              console.log('MCP createOfferWithConfirmedClient result:', result)
+
+              // If successful, format the response with PDF link
+              if (result.success && result.pdfUrl) {
+                return {
+                  ...result,
+                  message: `${result.message}
+
+📄 Angebot: ${result.pdfUrl}
+
+Das Angebot wurde erfolgreich erstellt und steht als PDF zum Download bereit.`
+                }
+              }
+
+              return result
+            } catch (error) {
+              console.error('MCP confirmOfferClient error:', error)
+              return {
+                success: false,
+                error: 'Fehler beim Bestätigen des Angebots über MCP',
                 message: 'Es gab einen Fehler beim Erstellen des Angebots.'
               }
             }

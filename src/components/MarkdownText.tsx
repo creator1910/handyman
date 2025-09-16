@@ -1,4 +1,5 @@
 import React from 'react'
+import { PDFViewer } from './PDFViewer'
 
 interface MarkdownTextProps {
   children: string
@@ -13,9 +14,11 @@ interface MarkdownTextProps {
  * - Line breaks and paragraphs
  * - Numbered and bulleted lists (-, *, •)
  * - Code formatting
+ * - Markdown tables
  */
 export default function MarkdownText({ children, className = '' }: MarkdownTextProps) {
   if (!children) return null
+
 
   const renderMarkdown = (text: string): React.ReactNode[] => {
     const lines = text.split('\n')
@@ -23,6 +26,7 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
     let listItems: string[] = []
     let listType: 'ul' | 'ol' | null = null
     let paragraphContent: string[] = []
+    let tableLines: string[] = []
 
     const flushParagraph = (index: number) => {
       if (paragraphContent.length > 0) {
@@ -55,8 +59,74 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
       }
     }
 
+    const flushTable = (index: number) => {
+      if (tableLines.length > 1) {
+        // First line is headers
+        const headerLine = tableLines[0]
+        const dataRows = tableLines.slice(2) // Skip header and separator line
+
+        // Parse headers
+        const headers = headerLine.split('|').map(h => h.trim()).filter(h => h !== '')
+
+        // Parse data rows
+        const rows = dataRows.map(row =>
+          row.split('|').map(cell => cell.trim()).filter(cell => cell !== '')
+        )
+
+        if (headers.length > 0 && rows.length > 0) {
+          elements.push(
+            <div key={`table-${index}`} className="mb-4 overflow-x-auto">
+              <table className="min-w-full border-collapse border border-gray-300 bg-white rounded-lg shadow-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {headers.map((header, headerIndex) => (
+                      <th key={headerIndex} className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
+                        {renderInlineMarkdown(header)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rowIndex) => (
+                    <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {row.map((cell, cellIndex) => (
+                        <td key={cellIndex} className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                          {renderInlineMarkdown(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+
+        tableLines = []
+      }
+    }
+
     lines.forEach((line, index) => {
       const trimmedLine = line.trim()
+
+      // Handle table rows (starts with |)
+      if (trimmedLine.startsWith('|') && trimmedLine.endsWith('|')) {
+        flushParagraph(index)
+        flushList(index)
+        tableLines.push(trimmedLine)
+        return
+      }
+
+      // Handle table separator line (|---|---|)
+      if (trimmedLine.match(/^\|[\s\-:]+\|$/)) {
+        tableLines.push(trimmedLine)
+        return
+      }
+
+      // If we were building a table and hit a non-table line, flush it
+      if (tableLines.length > 0) {
+        flushTable(index)
+      }
 
       // Handle numbered lists
       const numberedMatch = trimmedLine.match(/^\d+\.\s*(.+)$/)
@@ -87,6 +157,7 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
       if (h2Match) {
         flushParagraph(index)
         flushList(index)
+        flushTable(index)
         elements.push(
           <h2 key={`h2-${index}`} className="text-lg font-semibold text-gray-900 mb-3 mt-5 first:mt-0">
             {renderInlineMarkdown(h2Match[1])}
@@ -100,6 +171,7 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
       if (h3Match) {
         flushParagraph(index)
         flushList(index)
+        flushTable(index)
         elements.push(
           <h3 key={`h3-${index}`} className="text-base font-semibold text-gray-900 mb-2 mt-4 first:mt-0">
             {renderInlineMarkdown(h3Match[1])}
@@ -108,10 +180,32 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
         return
       }
 
+      // Handle PDF links (🔗PDF: /api/offers/xxx/pdf or 📄 Angebot: /api/offers/xxx/pdf)
+      const pdfMatch = trimmedLine.match(/^(?:🔗PDF:|📄\s*Angebot:)\s*(\S+)$/)
+      if (pdfMatch) {
+        flushParagraph(index)
+        flushList(index)
+        flushTable(index)
+        const pdfUrl = pdfMatch[1]
+        const filename = pdfUrl.includes('/offers/')
+          ? `Angebot-${pdfUrl.split('/')[3]}.pdf`
+          : 'dokument.pdf'
+        elements.push(
+          <PDFViewer
+            key={`pdf-${index}`}
+            url={pdfUrl}
+            filename={filename}
+            className="mb-4"
+          />
+        )
+        return
+      }
+
       // Handle horizontal rules (---)
       if (trimmedLine === '---') {
         flushParagraph(index)
         flushList(index)
+        flushTable(index)
         elements.push(
           <hr key={`hr-${index}`} className="border-gray-300 my-4" />
         )
@@ -122,6 +216,7 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
       if (!trimmedLine) {
         flushParagraph(index)
         flushList(index)
+        flushTable(index)
         return
       }
 
@@ -133,6 +228,7 @@ export default function MarkdownText({ children, className = '' }: MarkdownTextP
     // Flush remaining content
     flushParagraph(lines.length)
     flushList(lines.length)
+    flushTable(lines.length)
 
     return elements
   }

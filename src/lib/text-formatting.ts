@@ -73,7 +73,8 @@ export function processHandwerkerText(text: string): string {
     .replace(/\blaufmeter\b/g, ' Laufmeter')
     .replace(/\bh\b(?=\s|$)/g, ' h')
     .replace(/\bstd\b/g, ' Std.')
-    // Clean up spacing
-    .replace(/\s+/g, ' ')
+    // Clean up spacing but preserve line breaks for markdown
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
     .trim()
 }

@@ -2,7 +2,7 @@ import { supabase, Customer, Offer } from './supabase';
 import { createId } from '@paralleldrive/cuid2';
 
 /**
- * MCP Client for communicating with the HandyAI CRM MCP Server
+ * MCP Client for communicating with the craft.ai CRM MCP Server
  * Uses HTTP transport in production, direct database in development
  */
 export class MCPClient {
@@ -221,7 +221,200 @@ export class MCPClient {
           return {
             success: true,
             offer,
-            message: `Angebot für ${offer.customer.firstName} ${offer.customer.lastName} erfolgreich erstellt.`
+            pdfUrl: `/api/offers/${offer.id}/pdf`,
+            message: `Angebot ${offerNumber} für ${offer.customer.firstName} ${offer.customer.lastName} erfolgreich erstellt.`
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: 'Fehler beim Erstellen des Angebots',
+            message: error.message
+          };
+        }
+
+      case 'create_offer_with_client_lookup':
+        console.log(`🔍 [createOfferWithClientLookup] Starting with arguments:`, arguments_);
+        try {
+          const clientName = arguments_.clientName;
+          console.log(`🔍 [createOfferWithClientLookup] Searching for: "${clientName}"`);
+
+          // Use the same logic as find_customer_by_name for consistency
+          let query = supabase
+            .from('customers')
+            .select('*')
+            .order('createdAt', { ascending: false });
+
+          // Split search into words for better matching
+          const searchWords = clientName.split(' ').filter((word: string) => word.trim());
+
+          if (searchWords.length === 1) {
+            // Single word search - check each field
+            const queryStr = `firstName.ilike.%${clientName}%,lastName.ilike.%${clientName}%`;
+            console.log(`🔍 [createOfferWithClientLookup] Single word query:`, queryStr);
+            query = query.or(queryStr);
+          } else {
+            // Multi-word search - check if words match firstName and lastName
+            const firstWord = searchWords[0];
+            const lastWord = searchWords[searchWords.length - 1];
+            const queryStr = `firstName.ilike.%${firstWord}%,lastName.ilike.%${lastWord}%,` +
+              `firstName.ilike.%${clientName}%,lastName.ilike.%${clientName}%`;
+            console.log(`🔍 [createOfferWithClientLookup] Multi-word query:`, queryStr);
+            query = query.or(queryStr);
+          }
+
+          const { data: customers, error: searchError } = await query;
+
+          if (searchError) throw searchError;
+
+          console.log(`🔍 [createOfferWithClientLookup] Found ${customers?.length || 0} customers:`, customers);
+
+          if (!customers || customers.length === 0) {
+            return {
+              success: false,
+              needsClientCreation: true,
+              suggestedClientData: {
+                firstName: clientName.split(' ')[0] || '',
+                lastName: clientName.split(' ').slice(1).join(' ') || ''
+              },
+              message: `Kein Kunde mit dem Namen "${clientName}" gefunden. Soll ich einen neuen Kunden anlegen?`
+            };
+          }
+
+          // Calculate similarity scores for better matching
+          const scoredCustomers = customers.map(customer => {
+            const fullName = `${customer.firstName} ${customer.lastName}`.toLowerCase();
+            const searchLower = clientName.toLowerCase();
+
+            let score = 0;
+            if (fullName === searchLower) score = 100;
+            else if (fullName.includes(searchLower)) score = 80;
+            else if (searchLower.includes(customer.firstName.toLowerCase()) ||
+                     searchLower.includes(customer.lastName.toLowerCase())) score = 60;
+            else score = 30;
+
+            return { ...customer, matchScore: score };
+          });
+
+          const sortedCustomers = scoredCustomers
+            .sort((a, b) => b.matchScore - a.matchScore)
+            .slice(0, 3);
+
+          // If we have a perfect match (score 100), automatically proceed with that customer
+          if (sortedCustomers[0]?.matchScore === 100) {
+            const customerId = sortedCustomers[0].id;
+            const offerDetails = arguments_.offerDetails;
+
+            // Generate offer number
+            const { count } = await supabase
+              .from('offers')
+              .select('*', { count: 'exact', head: true });
+
+            const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
+
+            const now = new Date().toISOString();
+            const { data: offer, error } = await supabase
+              .from('offers')
+              .insert({
+                id: createId(),
+                customerId,
+                offerNumber,
+                jobDescription: offerDetails.jobDescription || null,
+                measurements: offerDetails.measurements || null,
+                materialsCost: offerDetails.materialsCost || 0,
+                laborCost: offerDetails.laborCost || 0,
+                totalCost: (offerDetails.materialsCost || 0) + (offerDetails.laborCost || 0),
+                status: 'DRAFT',
+                createdAt: now,
+                updatedAt: now
+              })
+              .select('*')
+              .single();
+
+            if (error) throw error;
+
+            return {
+              success: true,
+              offer: {
+                ...offer,
+                customer: sortedCustomers[0]
+              },
+              pdfUrl: `/api/offers/${offer.id}/pdf`,
+              message: `Angebot ${offerNumber} für ${sortedCustomers[0].firstName} ${sortedCustomers[0].lastName} erfolgreich erstellt und als PDF generiert.`
+            };
+          }
+
+          return {
+            success: true,
+            needsClientConfirmation: true,
+            suggestedClients: sortedCustomers,
+            bestMatch: sortedCustomers[0],
+            offerDetails: arguments_.offerDetails,
+            message: `${sortedCustomers.length} passende Kunden für "${clientName}" gefunden. Bitte bestätigen Sie den richtigen Kunden.`
+          };
+
+        } catch (error: any) {
+          return {
+            success: false,
+            error: 'Fehler bei der Kundensuche',
+            message: error.message
+          };
+        }
+
+      case 'create_offer_with_confirmed_client':
+        try {
+          const { customerId, offerDetails } = arguments_;
+
+          // Verify customer exists
+          const { data: customer, error: customerError } = await supabase
+            .from('customers')
+            .select('firstName, lastName')
+            .eq('id', customerId)
+            .single();
+
+          if (customerError || !customer) {
+            return {
+              success: false,
+              error: 'Kunde nicht gefunden',
+              message: 'Der angegebene Kunde wurde nicht gefunden.'
+            };
+          }
+
+          // Generate offer number
+          const { count } = await supabase
+            .from('offers')
+            .select('*', { count: 'exact', head: true });
+
+          const offerNumber = `ANG-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
+
+          const now = new Date().toISOString();
+          const { data: offer, error } = await supabase
+            .from('offers')
+            .insert({
+              id: createId(),
+              customerId,
+              offerNumber,
+              jobDescription: offerDetails.jobDescription || null,
+              measurements: offerDetails.measurements || null,
+              materialsCost: offerDetails.materialsCost || 0,
+              laborCost: offerDetails.laborCost || 0,
+              totalCost: (offerDetails.materialsCost || 0) + (offerDetails.laborCost || 0),
+              status: 'DRAFT',
+              createdAt: now,
+              updatedAt: now
+            })
+            .select('*')
+            .single();
+
+          if (error) throw error;
+
+          return {
+            success: true,
+            offer: {
+              ...offer,
+              customer
+            },
+            pdfUrl: `/api/offers/${offer.id}/pdf`,
+            message: `Angebot ${offerNumber} für ${customer.firstName} ${customer.lastName} erfolgreich erstellt und als PDF generiert.`
           };
         } catch (error: any) {
           return {
@@ -428,6 +621,19 @@ export class MCPClient {
 
   async getCustomerDetails(customerId: string) {
     return this.callTool('get_customer_details', { customerId });
+  }
+
+  async createOfferWithClientLookup(clientName: string, offerDetails?: any) {
+    return this.callTool('create_offer_with_client_lookup', { clientName, offerDetails });
+  }
+
+  async createOfferWithConfirmedClient(customerId: string, offerDetails: {
+    jobDescription?: string;
+    measurements?: string;
+    materialsCost?: number;
+    laborCost?: number;
+  }) {
+    return this.callTool('create_offer_with_confirmed_client', { customerId, offerDetails });
   }
 }
 

@@ -9,14 +9,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', fullWidth = false, children, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
+    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
     
     const variants = {
-      primary: 'bg-primary text-white hover:bg-primary-600 active:bg-primary-700 shadow-soft',
-      secondary: 'border border-border bg-white text-gray-900 hover:bg-surface active:bg-gray-50',
-      tertiary: 'text-gray-700 hover:bg-surface active:bg-gray-100',
-      success: 'bg-status-accepted text-white hover:bg-green-600 active:bg-green-700',
-      danger: 'bg-status-declined text-white hover:bg-red-600 active:bg-red-700'
+      primary: 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 shadow-sm',
+      secondary: 'border border-gray-200 bg-white text-gray-900 hover:bg-gray-50 active:bg-gray-100 shadow-sm',
+      tertiary: 'text-gray-700 hover:bg-gray-50 active:bg-gray-100',
+      success: 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700 shadow-sm',
+      danger: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700 shadow-sm'
     }
     
     const sizes = {
