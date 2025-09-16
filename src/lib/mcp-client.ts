@@ -113,7 +113,7 @@ export class MCPClient {
 
           if (arguments_.search) {
             // Split search into words for better matching
-            const searchWords = arguments_.search.split(' ').filter(word => word.trim());
+            const searchWords = arguments_.search.split(' ').filter((word: string) => word.trim());
 
             if (searchWords.length === 1) {
               // Single word search - check each field
@@ -276,7 +276,7 @@ export class MCPClient {
             .order('createdAt', { ascending: false });
 
           // Split search into words for better matching
-          const searchWords = searchTerm.split(' ').filter(word => word.trim());
+          const searchWords = searchTerm.split(' ').filter((word: string) => word.trim());
 
           if (searchWords.length === 1) {
             // Single word search - check each field
