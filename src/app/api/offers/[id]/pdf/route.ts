@@ -8,6 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const forceDownload = searchParams.get('download') === 'true'
 
     // Fetch offer with customer details
     const { data: offer, error } = await supabase
@@ -48,7 +50,9 @@ export async function GET(
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Angebot-${offer.offerNumber}.pdf"`,
+        'Content-Disposition': forceDownload
+          ? `attachment; filename="Angebot-${offer.offerNumber}.pdf"`
+          : `inline; filename="Angebot-${offer.offerNumber}.pdf"`,
       },
     })
   } catch (error) {
